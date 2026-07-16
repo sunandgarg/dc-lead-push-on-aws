@@ -166,15 +166,55 @@ Deno.serve(async (req) => {
           .delete()
           .eq("user_id", newUser.user.id);
         if (clearRoleError) throw clearRoleError;
-        if (role === "admin") {
+        if (role === "admin" || role === "super_admin") {
           const { error: roleError } = await adminClient.from("user_roles").insert({
             user_id: newUser.user.id,
-            role: "admin",
+            role,
           });
           if (roleError) throw roleError;
         }
 
         return new Response(JSON.stringify({ success: true, created: wasCreated, user: newUser.user }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "approve_user": {
+        const { user_id } = params;
+        if (!user_id) {
+          return new Response(JSON.stringify({ error: "user_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const { error: updateError } = await adminClient.from("profiles").update({
+          is_approved: true,
+          approved_by: caller.id,
+          approved_at: new Date().toISOString(),
+        }).eq("id", user_id);
+        if (updateError) throw updateError;
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "revoke_user": {
+        const { user_id } = params;
+        if (!user_id) {
+          return new Response(JSON.stringify({ error: "user_id required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const { error: updateError } = await adminClient.from("profiles").update({
+          is_approved: false,
+        }).eq("id", user_id);
+        if (updateError) throw updateError;
+
+        return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

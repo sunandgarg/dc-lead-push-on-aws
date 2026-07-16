@@ -91,11 +91,7 @@ export function UserManagement() {
   const handleApprove = async (userId: string) => {
     setProcessingId(userId);
     try {
-      await supabase.from('profiles').update({
-        is_approved: true,
-        approved_by: user?.id,
-        approved_at: new Date().toISOString(),
-      }).eq('id', userId);
+      await callAdmin('approve_user', { user_id: userId });
       toast({ title: 'User Approved' });
       fetchUsers();
     } catch (err: any) {
@@ -108,7 +104,7 @@ export function UserManagement() {
   const handleRevoke = async (userId: string) => {
     setProcessingId(userId);
     try {
-      await supabase.from('profiles').update({ is_approved: false }).eq('id', userId);
+      await callAdmin('revoke_user', { user_id: userId });
       toast({ title: 'Access Revoked' });
       fetchUsers();
     } catch (err: any) {
@@ -285,7 +281,10 @@ export function UserManagement() {
                   ) : (
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-500/10 text-yellow-600">Pending</span>
                   )}
-                  {u.roles.includes('admin') && (
+                  {u.roles.includes('super_admin') && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-600">Super Admin</span>
+                  )}
+                  {u.roles.includes('admin') && !u.roles.includes('super_admin') && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary">Admin</span>
                   )}
                 </div>
@@ -363,7 +362,7 @@ export function UserManagement() {
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-medium text-foreground">Role:</span>
                   <Select
-                    value={u.roles.includes('admin') ? 'admin' : 'user'}
+                    value={u.roles.includes('super_admin') ? 'super_admin' : u.roles.includes('admin') ? 'admin' : 'user'}
                     onValueChange={(val) => handleRoleChange(u.id, val)}
                   >
                     <SelectTrigger className="w-32 h-8 text-sm">
@@ -372,12 +371,13 @@ export function UserManagement() {
                     <SelectContent>
                       <SelectItem value="user">User</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="super_admin">Super Admin</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <span className="text-sm font-medium text-foreground">Permissions:</span>
-                  {u.roles.includes('admin') ? (
+                  {u.roles.includes('admin') || u.roles.includes('super_admin') ? (
                     <p className="text-sm text-muted-foreground mt-1">Admins have full access to all features.</p>
                   ) : u.permissions.length > 0 ? (
                     <div className="flex flex-wrap gap-1 mt-1">
@@ -423,6 +423,7 @@ export function UserManagement() {
                 <SelectContent>
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="super_admin">Super Admin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -470,7 +471,7 @@ export function UserManagement() {
             <DialogTitle>Permissions for {selectedUser?.email}</DialogTitle>
           </DialogHeader>
           <div className="py-4 max-h-96 overflow-y-auto space-y-4">
-            {selectedUser?.roles.includes('admin') ? (
+            {selectedUser?.roles.includes('admin') || selectedUser?.roles.includes('super_admin') ? (
               <p className="text-sm text-muted-foreground">Admins automatically have access to all features. Change role to "User" to set granular permissions.</p>
             ) : (
               Object.entries(ALL_PERMISSIONS).map(([key, module]) => (
@@ -506,7 +507,7 @@ export function UserManagement() {
             <button onClick={() => setShowPermissionsModal(false)} className="px-4 py-2 border border-border rounded-lg text-sm">Cancel</button>
             <button
               onClick={handleSavePermissions}
-              disabled={selectedUser?.roles.includes('admin')}
+              disabled={selectedUser?.roles.includes('admin') || selectedUser?.roles.includes('super_admin')}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50"
             >
               Save Permissions
