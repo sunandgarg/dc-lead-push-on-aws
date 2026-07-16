@@ -3,6 +3,7 @@ import { RefreshCw, Clock, Zap, Save, ExternalLink, KeyRound, Lock, Gauge } from
 import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 
 interface University {
   id: string;
@@ -48,6 +49,7 @@ export function UniversityInfoPanel({ university, onRateLimitUpdate }: Universit
     limit: university.daily_lead_limit ?? null,
   });
   const { toast } = useToast();
+  const { isAdmin } = useAdminAuth();
   const onRateLimitUpdateRef = useRef(onRateLimitUpdate);
   onRateLimitUpdateRef.current = onRateLimitUpdate;
 
@@ -164,25 +166,27 @@ export function UniversityInfoPanel({ university, onRateLimitUpdate }: Universit
   return (
     <div className="space-y-6">
       {/* University Info Card */}
-      <div className="card-elevated p-6">
-        <h3 className="font-display text-lg font-bold text-foreground mb-4">{university.name}</h3>
-        <div className="space-y-3">
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">API Endpoint</p>
-            <p className="text-sm text-foreground font-mono break-all">{university.api_url}</p>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
+      {isAdmin && (
+        <div className="card-elevated p-6">
+          <h3 className="font-display text-lg font-bold text-foreground mb-4">{university.name}</h3>
+          <div className="space-y-3">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Source</p>
-              <p className="text-sm text-foreground font-medium">{university.source}</p>
+              <p className="text-xs text-muted-foreground mb-1">API Endpoint</p>
+              <p className="text-sm text-foreground font-mono break-all">{university.api_url}</p>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Medium</p>
-              <p className="text-sm text-foreground font-medium">{university.medium}</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Source</p>
+                <p className="text-sm text-foreground font-medium">{university.source}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Medium</p>
+                <p className="text-sm text-foreground font-medium">{university.medium}</p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Publisher Panel Info */}
       {(university.publisher_panel_url || university.publisher_id) && (

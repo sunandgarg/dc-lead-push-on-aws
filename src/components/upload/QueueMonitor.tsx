@@ -1,5 +1,5 @@
 import { useState, useEffect, memo, useMemo, useCallback, useRef } from "react";
-import { Activity, CheckCircle2, XCircle, Loader2, RefreshCw, User } from "lucide-react";
+import { Activity, CheckCircle2, XCircle, Loader2, RefreshCw, User, Pause, Play, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { DataRetentionNotice } from "@/components/ui/DataRetentionNotice";
@@ -21,6 +23,7 @@ interface BatchInfo {
   duplicate_count: number;
   status: string;
   is_paused: boolean;
+  is_cancelled: boolean;
   created_at: string;
   user_id: string;
   user_email?: string;
@@ -44,10 +47,13 @@ const stringifyBatchValue = (value: unknown): string => {
 type TabKey = "active" | "failed" | "success";
 
 function QueueMonitorInner() {
-  const { isAdmin } = useAdminAuth();
+  const { isAdmin, loading: adminAuthLoading } = useAdminAuth();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [batches, setBatches] = useState<BatchInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>("active");
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -55,11 +61,22 @@ function QueueMonitorInner() {
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
-        const { data, error } = await supabase
+        if (!isAdmin && !user?.id) {
+          setBatches([]);
+          return;
+        }
+
+        let query = supabase
           .from("upload_batches")
           .select("*")
           .order("created_at", { ascending: false })
           .limit(50);
+
+        if (!isAdmin && user?.id) {
+          query = query.eq("user_id", user.id);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
 
@@ -84,6 +101,7 @@ function QueueMonitorInner() {
             ...b,
             status: b.status || "pending",
             is_paused: b.is_paused || false,
+            is_cancelled: b.is_cancelled || false,
             university_name: uniMap.get(b.university_id) || "Unknown",
             user_email: userMap.get(b.user_id) || undefined,
           })),
@@ -94,12 +112,13 @@ function QueueMonitorInner() {
         if (!silent) setLoading(false);
       }
     },
-    [isAdmin],
+    [isAdmin, user?.id],
   );
 
   useEffect(() => {
+    if (adminAuthLoading) return;
     fetchBatches();
-  }, [fetchBatches]);
+  }, [adminAuthLoading, fetchBatches]);
 
   // Queue data is intentionally manual-refresh only. Automatic polling here
   // caused network/state updates while a CSV push was running and made users
@@ -130,6 +149,84 @@ function QueueMonitorInner() {
 
   const getProgress = (b: BatchInfo) =>
     b.total_leads === 0 ? 0 : Math.round(((b.success_count + b.fail_count + ((b as any).duplicate_count || 0)) / b.total_leads) * 100);
+
+  const updateBatch = useCallback(
+    async (batchId: string, updates: Record<string, unknown>, successTitle: string) => {
+      setProcessingId(batchId);
+      try {
+        const { error } = await supabase.from("upload_batches").update(updates).eq("id", batchId);
+        if (error) throw error;
+        toast({ title: successTitle });
+        fetchBatches(true);
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error?.message || "Failed to update task",
+          variant: "destructive",
+        });
+      } finally {
+        setProcessingId(null);
+      }
+    },
+    [fetchBatches, toast],
+  );
+
+  const handlePause = useCallback(
+    (batchId: string) => {
+      updateBatch(batchId, { is_paused: true, status: "paused" }, "Task paused");
+    },
+    [updateBatch],
+  );
+
+  const handleResume = useCallback(
+    (batchId: string) => {
+      updateBatch(batchId, { is_paused: false, status: "processing" }, "Task resumed");
+    },
+    [updateBatch],
+  );
+
+  const handleStop = useCallback(
+    (batchId: string) => {
+      updateBatch(
+        batchId,
+        { status: "cancelled", is_cancelled: true, is_paused: false, completed_at: new Date().toISOString() },
+        "Task stopped",
+      );
+    },
+    [updateBatch],
+  );
+
+  const handleDelete = useCallback(
+    async (batch: BatchInfo) => {
+      if (!window.confirm(`Delete task "${stringifyBatchValue(batch.file_name) || "Untitled"}"? This removes it from the queue monitor.`)) {
+        return;
+      }
+
+      setProcessingId(batch.id);
+      try {
+        if (!batch.is_cancelled && batch.status !== "completed" && batch.status !== "cancelled") {
+          await supabase
+            .from("upload_batches")
+            .update({ status: "cancelled", is_cancelled: true, is_paused: false, completed_at: new Date().toISOString() })
+            .eq("id", batch.id);
+        }
+
+        const { error } = await supabase.from("upload_batches").delete().eq("id", batch.id);
+        if (error) throw error;
+        toast({ title: "Task deleted" });
+        fetchBatches(true);
+      } catch (error: any) {
+        toast({
+          title: "Error",
+          description: error?.message || "Failed to delete task",
+          variant: "destructive",
+        });
+      } finally {
+        setProcessingId(null);
+      }
+    },
+    [fetchBatches, toast],
+  );
 
   return (
     <Card>
@@ -207,6 +304,8 @@ function QueueMonitorInner() {
             {currentList.map((batch) => {
               const progress = getProgress(batch);
               const isActive = batch.status === "processing" || batch.status === "pending";
+              const canControl = activeTab === "active" || batch.status === "processing" || batch.status === "pending" || batch.status === "paused";
+              const isWorking = processingId === batch.id;
               return (
                 <div
                   key={batch.id}
@@ -265,6 +364,59 @@ function QueueMonitorInner() {
                         {stringifyBatchValue(batch.user_email)}
                       </span>
                     )}
+                  </div>
+                  <div className="flex items-center justify-end gap-1.5 mt-2">
+                    {canControl && (
+                      batch.is_paused ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={isWorking}
+                          onClick={() => handleResume(batch.id)}
+                        >
+                          {isWorking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                          Resume
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={isWorking}
+                          onClick={() => handlePause(batch.id)}
+                        >
+                          {isWorking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Pause className="h-3 w-3" />}
+                          Pause
+                        </Button>
+                      )
+                    )}
+                    {canControl && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                        disabled={isWorking}
+                        onClick={() => handleStop(batch.id)}
+                      >
+                        <XCircle className="h-3 w-3" />
+                        Stop
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                      disabled={isWorking}
+                      onClick={() => handleDelete(batch)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Delete
+                    </Button>
                   </div>
                 </div>
               );

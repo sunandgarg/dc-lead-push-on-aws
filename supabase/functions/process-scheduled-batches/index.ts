@@ -101,6 +101,7 @@ async function processOneLead(
       .maybeSingle();
 
     if (
+      !batchCheck ||
       batchCheck?.is_paused ||
       batchCheck?.is_cancelled ||
       ["paused", "cancelled"].includes(String(batchCheck?.status || ""))

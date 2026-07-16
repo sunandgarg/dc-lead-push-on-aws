@@ -71,11 +71,16 @@ async function getBlockedBatchIds(batchIds: string[]): Promise<Set<string>> {
     return new Set(batchIds);
   }
 
-  return new Set(
+  const blockedBatchIds = new Set(
     (batchRows || [])
       .filter((row: any) => row.is_cancelled || row.is_paused || ["cancelled", "paused"].includes(row.status))
       .map((row: any) => row.id),
   );
+  const returnedBatchIds = new Set((batchRows || []).map((row: any) => row.id));
+  batchIds.forEach((batchId) => {
+    if (!returnedBatchIds.has(batchId)) blockedBatchIds.add(batchId);
+  });
+  return blockedBatchIds;
 }
 
 function stoppedResult() {
@@ -270,6 +275,14 @@ async function processOne(
         .select("status,is_paused,is_cancelled")
         .eq("id", batchId)
         .maybeSingle();
+      if (!batchRow) {
+        return {
+          success: false,
+          status: "Cancelled",
+          response: "Processing was stopped before this lead was sent",
+          httpStatus: 0,
+        };
+      }
       if (batchRow?.is_cancelled || batchRow?.is_paused || ["cancelled", "paused"].includes(batchRow?.status)) {
         return {
           success: false,
