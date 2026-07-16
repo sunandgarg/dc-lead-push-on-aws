@@ -26,6 +26,8 @@ interface LeadPushModuleProps {
   onBulkImport?: (configs: any[]) => void;
 }
 
+const USER_ALLOWED_LEAD_PUSH_VIEWS = new Set(["upload", "active-tasks"]);
+
 export function LeadPushModule({
   universities,
   logs,
@@ -39,7 +41,7 @@ export function LeadPushModule({
   onBulkImport,
 }: LeadPushModuleProps) {
   const location = useLocation();
-  const { isAdmin } = useAdminAuth();
+  const { isAdmin, loading: adminAuthLoading } = useAdminAuth();
 
   const { activeView } = useMemo(() => {
     const parts = location.pathname.split("/").filter(Boolean);
@@ -54,11 +56,6 @@ export function LeadPushModule({
       appCache.setUniversitySubRoute(activeView);
     }
   }, [activeView]);
-
-  const userAllowedLeadPushViews = useMemo(() => new Set(["hub", "upload", "active-tasks"]), []);
-  if (!isAdmin && !userAllowedLeadPushViews.has(activeView)) {
-    return <Navigate to="/lead-push/upload" replace />;
-  }
 
   const hubStats = useMemo(() => {
     const today = new Date();
@@ -94,6 +91,18 @@ export function LeadPushModule({
       pendingLeads,
     };
   }, [universities, batches]);
+
+  if (adminAuthLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!isAdmin && !USER_ALLOWED_LEAD_PUSH_VIEWS.has(activeView)) {
+    return <Navigate to="/lead-push/upload" replace />;
+  }
 
   switch (activeView) {
     case "universities":

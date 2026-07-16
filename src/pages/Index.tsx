@@ -59,7 +59,7 @@ const Index = () => {
   const hasInitialized = useRef(false);
   const { toast } = useToast();
   const { user, signOut } = useAuth();
-  const { isAdmin } = useAdminAuth();
+  const { isAdmin, loading: adminAuthLoading } = useAdminAuth();
 
   // Parse route to get active tab and sub-routes
   const { activeTab, subRoute, universitySlug } = useMemo(() => {
@@ -143,6 +143,17 @@ const Index = () => {
       navigate(`/${tab}`, { replace: false });
     }
   }, [activeTab, navigate]);
+
+  useEffect(() => {
+    if (adminAuthLoading || isAdmin) return;
+
+    const userAllowedLeadPushRoutes = new Set(['upload', 'active-tasks']);
+    const isAllowedUserRoute = activeTab === 'lead-push' && subRoute && userAllowedLeadPushRoutes.has(subRoute);
+
+    if (!isAllowedUserRoute) {
+      navigate('/lead-push/upload', { replace: true });
+    }
+  }, [activeTab, subRoute, isAdmin, adminAuthLoading, navigate]);
 
   const fetchUniversities = useCallback(async () => {
     try {
@@ -687,7 +698,7 @@ const Index = () => {
     }
   }, [toast, fetchUniversities]);
 
-  if (loading) {
+  if (loading || adminAuthLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -711,19 +722,19 @@ const Index = () => {
 
       <main className="pb-16">
         {/* All Leads */}
-        <div className={activeTab === 'all-leads' ? '' : 'hidden'}>
+        {isAdmin && <div className={activeTab === 'all-leads' ? '' : 'hidden'}>
           <AllLeadsPage />
-        </div>
+        </div>}
 
         {/* Dashboard */}
-        <div className={activeTab === 'dashboard' ? '' : 'hidden'}>
+        {isAdmin && <div className={activeTab === 'dashboard' ? '' : 'hidden'}>
           <MemoizedDashboardTab />
-        </div>
+        </div>}
 
         {/* CRM (includes Marketing) */}
-        <div className={activeTab === 'crm' ? '' : 'hidden'}>
+        {isAdmin && <div className={activeTab === 'crm' ? '' : 'hidden'}>
           <MemoizedCRMModule universities={universities} />
-        </div>
+        </div>}
 
         {/* Lead Push (Universities, Upload, History, Logs) */}
         <div className={activeTab === 'lead-push' ? '' : 'hidden'}>
@@ -742,7 +753,7 @@ const Index = () => {
         </div>
 
         {/* Connections - API Keys */}
-        <div className={activeTab === 'connections' ? '' : 'hidden'}>
+        {isAdmin && <div className={activeTab === 'connections' ? '' : 'hidden'}>
           <div className="container mx-auto px-4 pt-4">
             <div className="flex gap-2 mb-4">
               <Button
@@ -762,17 +773,17 @@ const Index = () => {
             </div>
           </div>
           {location.pathname.includes('ad-platforms') ? <AdPlatformsPage /> : <ApiConnectionsPage />}
-        </div>
+        </div>}
 
         {/* Automation */}
-        <div className={activeTab === 'automation' ? '' : 'hidden'}>
+        {isAdmin && <div className={activeTab === 'automation' ? '' : 'hidden'}>
           <AutomationRulesPage />
-        </div>
+        </div>}
 
         {/* URL Shortener */}
-        <div className={activeTab === 'url-shortener' ? '' : 'hidden'}>
+        {isAdmin && <div className={activeTab === 'url-shortener' ? '' : 'hidden'}>
           <MemoizedUrlShortenerModule />
-        </div>
+        </div>}
 
         {/* University Tracker (Admin Only) */}
         {isAdmin && (
@@ -782,14 +793,14 @@ const Index = () => {
         )}
 
         {/* Telecaller Management */}
-        <div className={activeTab === 'telecaller-mgmt' ? '' : 'hidden'}>
+        {isAdmin && <div className={activeTab === 'telecaller-mgmt' ? '' : 'hidden'}>
           <div className="container mx-auto px-4 pt-4">
             <TelecallerManagement />
           </div>
-        </div>
+        </div>}
 
         {/* Settings */}
-        <div className={activeTab === 'settings' ? '' : 'hidden'}>
+        {isAdmin && <div className={activeTab === 'settings' ? '' : 'hidden'}>
           <SettingsTab
             defaultLeadsPerMinute={5}
             onSaveSettings={() => toast({ title: 'Settings saved!' })}
@@ -797,7 +808,7 @@ const Index = () => {
               appCache.clearDataCache();
             }}
           />
-        </div>
+        </div>}
       </main>
 
       {/* Modals */}

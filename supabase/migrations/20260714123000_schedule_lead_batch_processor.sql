@@ -21,7 +21,7 @@ SELECT cron.schedule(
   '* * * * *',
   $job$
     SELECT net.http_post(
-      url := 'https://bddcpswnmjencovkhsqs.supabase.co/functions/v1/process-scheduled-batches',
+      url := 'https://lxbcosppgjktydsbvamw.supabase.co/functions/v1/process-scheduled-batches',
       headers := '{"Content-Type":"application/json"}'::jsonb,
       body := '{}'::jsonb
     );

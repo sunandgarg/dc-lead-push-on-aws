@@ -7,6 +7,7 @@ import { useEffect, useRef, memo, Suspense, lazy, forwardRef } from "react";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { appCache } from "@/hooks/useAppCache";
 import { hasSupabaseConfig, supabaseConfigError } from "@/integrations/supabase/client";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 
 // Lazy load pages for faster initial load
 // Retry a transient dynamic-import failure in place. Never hard-reload here:
@@ -74,6 +75,15 @@ function ProtectedLayout() {
 
 const StableProtectedLayout = memo(ProtectedLayout);
 
+function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { isAdmin, loading } = useAdminAuth();
+
+  if (loading) return <LoadingFallback />;
+  if (!isAdmin) return <Navigate to="/lead-push/upload" replace />;
+
+  return <>{children}</>;
+}
+
 // Route state saver - handles persistence WITHOUT triggering refetches
 function RouteStateSaver() {
   const location = useLocation();
@@ -140,19 +150,21 @@ function AppRoutes() {
             path="/telecaller"
             element={
               <ProtectedRoute>
-                <TelecallerApp />
+                <AdminOnlyRoute>
+                  <TelecallerApp />
+                </AdminOnlyRoute>
               </ProtectedRoute>
             }
           />
 
           {/* Legacy redirects */}
-          <Route path="/" element={<Navigate to="/all-leads" replace />} />
-          <Route path="/universities" element={<Navigate to="/lead-push/universities" replace />} />
+          <Route path="/" element={<Navigate to="/lead-push/upload" replace />} />
+          <Route path="/universities" element={<Navigate to="/lead-push/upload" replace />} />
           <Route path="/upload" element={<Navigate to="/lead-push/upload" replace />} />
-          <Route path="/history" element={<Navigate to="/lead-push/history" replace />} />
-          <Route path="/logs" element={<Navigate to="/lead-push/logs" replace />} />
-          <Route path="/marketing" element={<Navigate to="/crm/marketing-automation" replace />} />
-          <Route path="/marketing/*" element={<Navigate to="/crm/marketing-automation" replace />} />
+          <Route path="/history" element={<Navigate to="/lead-push/upload" replace />} />
+          <Route path="/logs" element={<Navigate to="/lead-push/upload" replace />} />
+          <Route path="/marketing" element={<Navigate to="/lead-push/upload" replace />} />
+          <Route path="/marketing/*" element={<Navigate to="/lead-push/upload" replace />} />
 
           {/*
             FIX: "Page refreshes on every click"

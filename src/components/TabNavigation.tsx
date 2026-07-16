@@ -33,6 +33,7 @@ export function TabNavigation({ activeTab, onTabChange, isAdmin = false }: TabNa
   
   const currentTabId = getActiveTabId();
   const visibleTabs = tabs.filter(tab => {
+    if (!isAdmin) return tab.id === 'lead-push';
     if (tab.adminOnly && !isAdmin) return false;
     // Admins always see all tabs; non-admins respect feature toggles
     if (!isAdmin && tab.featureKey && !isFeatureEnabled(tab.featureKey)) return false;

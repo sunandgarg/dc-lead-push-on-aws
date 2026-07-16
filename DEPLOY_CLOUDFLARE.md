@@ -12,9 +12,9 @@
 Configure these in Cloudflare Pages under **Settings → Variables and Secrets**:
 
 ```dotenv
-VITE_SUPABASE_PROJECT_ID=bddcpswnmjencovkhsqs
-VITE_SUPABASE_URL=https://bddcpswnmjencovkhsqs.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+VITE_SUPABASE_PROJECT_ID=lxbcosppgjktydsbvamw
+VITE_SUPABASE_URL=https://lxbcosppgjktydsbvamw.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_K_MGauxPOtUgPh7NvGWhpw_7O5npR7s
 ```
 
 The publishable key is intentionally safe for frontend use. Never put a Supabase
