@@ -181,7 +181,7 @@ serve(async (req) => {
         email: 'user@upgrad.com',
         phone: { number: '9999999999', code: '+91' },
         course: 'entrepreneurship',
-        sendWelcomeMail: true,
+        sendWelcomeMail: false,
         city: 'Mumbai',
         state: 'Maharashtra',
         country: 'India',

@@ -352,9 +352,9 @@ const buildLeadIdentityKey = (lead: { name?: string | null; email?: string | nul
 
 const UPGRAD_EXACT_SAMPLE_CSV = [
   "firstname,lastname,email,phone.number,phone.code,course,sendWelcomeMail,city,state,country,isDetectLocation,affiliateSource,leadSource.platform,leadSource.platformSection,extraFields.chatLink,emailTemplateSuffix",
-  "FirstName,LastName,user@upgrad.com,9999999999,+91,entrepreneurship,true,Mumbai,Maharashtra,India,false,aff_id=1&sub_aff_id=12,,,haptik.com/1234567,in",
-  "Rahul,Sharma,rahul.sharma@example.com,9876543210,+91,entrepreneurship,true,Mumbai,Maharashtra,India,false,aff_id=1&sub_aff_id=12,,,haptik.com/1234567,in",
-  "Priya,Patel,priya.patel@example.com,9876501234,+91,entrepreneurship,true,Mumbai,Maharashtra,India,false,aff_id=1&sub_aff_id=12,,,haptik.com/1234567,in",
+  "FirstName,LastName,user@upgrad.com,9999999999,+91,entrepreneurship,false,Mumbai,Maharashtra,India,false,aff_id=1&sub_aff_id=12,,,haptik.com/1234567,in",
+  "Rahul,Sharma,rahul.sharma@example.com,9876543210,+91,entrepreneurship,false,Mumbai,Maharashtra,India,false,aff_id=1&sub_aff_id=12,,,haptik.com/1234567,in",
+  "Priya,Patel,priya.patel@example.com,9876501234,+91,entrepreneurship,false,Mumbai,Maharashtra,India,false,aff_id=1&sub_aff_id=12,,,haptik.com/1234567,in",
 ].join("\n");
 
 const UPGRAD_EXACT_FIELDS = [
@@ -876,7 +876,7 @@ export function UploadLeadsTab({
       "phone.number": phone.number,
       course: lead.course || programOfInterest,
       country: lead.country || "India",
-      sendWelcomeMail: "true",
+      sendWelcomeMail: "false",
       isDetectLocation: lead.isDetectLocation || "false",
       affiliateSource: lead.affiliateSource || "aff_id=1&sub_aff_id=12",
       "leadSource.platform": lead["leadSource.platform"] || "",
@@ -960,7 +960,7 @@ export function UploadLeadsTab({
           code: lead["phone.code"] || lead["phone.countryCode"] || phone.countryCode,
         },
         course,
-        sendWelcomeMail: true,
+        sendWelcomeMail: false,
         city: get("city", "city"),
         state: get("state", "state"),
         country: lead.country || upgradMeta.country || "India",

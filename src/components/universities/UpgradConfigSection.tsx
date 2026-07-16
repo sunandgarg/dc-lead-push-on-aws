@@ -371,7 +371,7 @@ export function UpgradConfigSection({
       )}
 
       <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-        upGrad payload now follows the attached JSON exactly: <code>sendWelcomeMail</code> is always <code>true</code>,
+        upGrad payload keeps <code>sendWelcomeMail</code> disabled,
         <code> isDetectLocation</code> is always <code>false</code>, and <code>extraFields.chatLink</code> is used instead of LSQID.
       </div>
 
@@ -599,7 +599,7 @@ export function buildUpgradPreview(
     email: get("email", "email"),
     phone: { number: phoneNumber, code: phoneCode },
     course: get("course", "course"),
-    sendWelcomeMail: true,
+    sendWelcomeMail: false,
     city: get("city", "city"),
     state: get("state", "state"),
     country: row.country || cfg.country || "India",

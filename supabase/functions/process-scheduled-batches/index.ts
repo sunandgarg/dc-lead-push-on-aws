@@ -226,7 +226,7 @@ async function processOneLead(
         email: readField("email", "email"),
         phone: { number, code: countryCode },
         course: readField("course", "course"),
-        sendWelcomeMail: true,
+        sendWelcomeMail: false,
         city: readField("city", "city"),
         state: readField("state", "state"),
         country: leadData.country || upgradMeta.country || "India",

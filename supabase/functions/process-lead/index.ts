@@ -465,7 +465,7 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
       email: readField("email", "email"),
       phone: { number: phoneNumber, code: phoneCode },
       course: readField("course", "course"),
-      sendWelcomeMail: true,
+      sendWelcomeMail: false,
       city: readField("city", "city"),
       state: readField("state", "state"),
       country: leadDataWithDefaults.country || upgradMeta.country || "India",
