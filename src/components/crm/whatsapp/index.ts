@@ -1,0 +1,9 @@
+ export { WhatsAppModule } from './WhatsAppModule';
+ export { WhatsAppSettings } from './WhatsAppSettings';
+ export { WhatsAppTemplates } from './WhatsAppTemplates';
+ export { WhatsAppContacts } from './WhatsAppContacts';
+ export { WhatsAppCampaigns } from './WhatsAppCampaigns';
+ export { WhatsAppInbox } from './WhatsAppInbox';
+ export { WhatsAppAnalytics } from './WhatsAppAnalytics';
+ export { WhatsAppCosts } from './WhatsAppCosts';
+ export { WhatsAppCompliance } from './WhatsAppCompliance';

@@ -1,0 +1,2 @@
+ALTER TABLE public.universities ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'live' CHECK (status IN ('live','disabled'));
+CREATE INDEX IF NOT EXISTS idx_universities_status ON public.universities(status);

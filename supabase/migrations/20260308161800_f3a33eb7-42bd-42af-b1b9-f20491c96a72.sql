@@ -1,0 +1,1 @@
+ALTER TABLE public.universities ADD COLUMN IF NOT EXISTS default_values jsonb DEFAULT '{}'::jsonb;
