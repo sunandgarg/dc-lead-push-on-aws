@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, supabaseProjectUrl } from '@/integrations/supabase/client';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 const KNOWN_ROUTES = new Set([
@@ -138,7 +138,7 @@ function trackClick(urlId: string) {
     'Content-Type': 'application/json',
     'Prefer': 'return=minimal',
   };
-  const base = import.meta.env.VITE_SUPABASE_URL;
+  const base = supabaseProjectUrl;
 
   try {
     fetch(`${base}/rest/v1/url_clicks`, {

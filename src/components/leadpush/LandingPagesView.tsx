@@ -39,7 +39,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, supabaseProjectUrl } from '@/integrations/supabase/client';
 
 interface LandingPage {
   id: string;
@@ -60,7 +60,7 @@ interface Props {
   universities: any[];
 }
 
-const RECEIVE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/receive-lead`;
+const RECEIVE_URL = `${supabaseProjectUrl}/functions/v1/receive-lead`;
 
 export function LandingPagesView({ universities }: Props) {
   const navigate = useNavigate();

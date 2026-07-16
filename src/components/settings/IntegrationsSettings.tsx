@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, supabaseProjectUrl } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Phone, 
@@ -29,7 +29,7 @@ import {
 import React from 'react';
 
 // Get the Supabase project URL for webhooks
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_URL = supabaseProjectUrl;
 
 // Integration categories based on Meritto/Automateazy
 const INTEGRATION_CATEGORIES = {

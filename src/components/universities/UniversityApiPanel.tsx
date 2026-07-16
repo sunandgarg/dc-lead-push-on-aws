@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, supabaseProjectUrl } from '@/integrations/supabase/client';
 import { Copy, Check, Key, RefreshCw, Eye, EyeOff, Code, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -16,7 +16,7 @@ export function UniversityApiPanel({ universityId, universityName }: UniversityA
   const [regenerating, setRegenerating] = useState(false);
   const { toast } = useToast();
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseUrl = supabaseProjectUrl;
 
   useEffect(() => {
     fetchApiKey();

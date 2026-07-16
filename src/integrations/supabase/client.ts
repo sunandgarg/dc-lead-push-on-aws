@@ -11,7 +11,16 @@ export const supabaseConfigError = [
   !SUPABASE_PUBLISHABLE_KEY && 'VITE_SUPABASE_PUBLISHABLE_KEY is missing',
 ].filter(Boolean).join('. ');
 
-const supabaseUrl = SUPABASE_URL || 'https://missing-supabase-url.supabase.co';
+function normalizeSupabaseProjectUrl(value: string): string {
+  return value
+    .trim()
+    .replace(/\/+(rest\/v1|auth\/v1|functions\/v1)\/?$/i, '')
+    .replace(/\/+$/, '');
+}
+
+export const supabaseProjectUrl = SUPABASE_URL
+  ? normalizeSupabaseProjectUrl(SUPABASE_URL)
+  : 'https://missing-supabase-url.supabase.co';
 const supabasePublishableKey = SUPABASE_PUBLISHABLE_KEY || 'missing-supabase-publishable-key';
 
 function isNewSupabaseApiKey(value: string): boolean {
@@ -41,7 +50,7 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(supabaseUrl, supabasePublishableKey, {
+export const supabase = createClient<Database>(supabaseProjectUrl, supabasePublishableKey, {
   global: {
     fetch: createSupabaseFetch(supabasePublishableKey),
   },

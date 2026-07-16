@@ -52,7 +52,7 @@
     -->
     <script>
       (function(){
-        var SUPABASE_URL = "%VITE_SUPABASE_URL%";
+        var SUPABASE_URL = "%VITE_SUPABASE_URL%".replace(/\/+(rest\/v1|auth\/v1|functions\/v1)\/?$/i, "").replace(/\/+$/, "");
         var SUPABASE_KEY = "%VITE_SUPABASE_PUBLISHABLE_KEY%";
 
         // Bail if env vars aren't replaced (dev mode fallback — React handles it)
