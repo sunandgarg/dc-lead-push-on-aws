@@ -55,6 +55,37 @@ const MAX_PARTNER_ATTEMPTS = 1;
 const MAX_PARTNER_CONCURRENCY = 5;
 const PARTNER_TIMEOUT_MS = 30000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const STOPPED_STATUSES = new Set(["Cancelled", "Paused", "Stopped"]);
+
+async function getBlockedBatchIds(batchIds: string[]): Promise<Set<string>> {
+  if (batchIds.length === 0) return new Set();
+
+  const { data: batchRows, error } = await supabase
+    .from("upload_batches")
+    .select("id,status,is_paused,is_cancelled")
+    .in("id", [...new Set(batchIds)]);
+
+  if (error) {
+    console.error("Batch control check failed:", error);
+    // Fail closed: if we cannot verify control state, do not send queued leads.
+    return new Set(batchIds);
+  }
+
+  return new Set(
+    (batchRows || [])
+      .filter((row: any) => row.is_cancelled || row.is_paused || ["cancelled", "paused"].includes(row.status))
+      .map((row: any) => row.id),
+  );
+}
+
+function stoppedResult() {
+  return {
+    success: false,
+    status: "Cancelled",
+    response: "Processing was stopped before this lead was sent",
+    httpStatus: 0,
+  };
+}
 
 function resolvePartnerTimeoutMs(apiConfig: LeadPayload["apiConfig"]): number {
   const configuredSeconds = Number(apiConfig.apiTimeoutSeconds);
@@ -620,28 +651,13 @@ Deno.serve(async (req) => {
       // late workers cannot continue posting leads to the partner API.
       const batchIds = [...new Set(tasks.map((task) => task.batchId).filter(Boolean))];
       if (batchIds.length > 0) {
-        const { data: batchRows, error: batchStateError } = await supabase
-          .from("upload_batches")
-          .select("id,status,is_paused,is_cancelled")
-          .in("id", batchIds);
-        if (!batchStateError) {
-          const blockedBatchIds = new Set(
-            (batchRows || [])
-              .filter((row: any) => row.is_cancelled || row.is_paused || ["cancelled", "paused"].includes(row.status))
-              .map((row: any) => row.id),
-          );
-          tasks.forEach((task, index) => {
-            if (blockedBatchIds.has(task.batchId)) {
-              cancelledTaskIndices.add(index);
-              results[index] = {
-                success: false,
-                status: "Cancelled",
-                response: "Processing was stopped before this lead was sent",
-                httpStatus: 0,
-              };
-            }
-          });
-        }
+        const blockedBatchIds = await getBlockedBatchIds(batchIds);
+        tasks.forEach((task, index) => {
+          if (blockedBatchIds.has(task.batchId)) {
+            cancelledTaskIndices.add(index);
+            results[index] = stoppedResult();
+          }
+        });
       }
 
       // One status read and one atomic capacity reservation per university
@@ -719,6 +735,15 @@ Deno.serve(async (req) => {
           if (workIndex >= work.length) return;
           const idx = work[workIndex];
           try {
+            const taskBatchId = tasks[idx].batchId;
+            if (taskBatchId) {
+              const blockedBatchIds = await getBlockedBatchIds([taskBatchId]);
+              if (blockedBatchIds.has(taskBatchId)) {
+                cancelledTaskIndices.add(idx);
+                results[idx] = stoppedResult();
+                continue;
+              }
+            }
             results[idx] = await processOne(
               tasks[idx],
               optimized ? { skipGuards: true, skipPersistence: true } : {},
@@ -759,6 +784,10 @@ Deno.serve(async (req) => {
           if (status === "Success") aggregate.success++;
           else if (status === "Duplicate") aggregate.duplicate++;
           else if (status === "DLL_Blocked") aggregate.dllBlocked++;
+          else if (STOPPED_STATUSES.has(status)) {
+            aggregates.set(key, aggregate);
+            return;
+          }
           else aggregate.fail++;
           aggregates.set(key, aggregate);
         });

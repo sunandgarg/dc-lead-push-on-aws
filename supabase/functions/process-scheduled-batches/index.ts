@@ -88,12 +88,26 @@ async function processOneLead(
   lead: Record<string, any>,
   apiConfig: Record<string, any>,
   batchId: string
-): Promise<void> {
+): Promise<boolean> {
   let responseBody = "";
   let status = "Fail";
   const partnerTimeoutMs = resolvePartnerTimeoutMs(apiConfig);
 
   try {
+    const { data: batchCheck } = await supabase
+      .from("upload_batches")
+      .select("is_paused, is_cancelled, status")
+      .eq("id", batchId)
+      .maybeSingle();
+
+    if (
+      batchCheck?.is_paused ||
+      batchCheck?.is_cancelled ||
+      ["paused", "cancelled"].includes(String(batchCheck?.status || ""))
+    ) {
+      return false;
+    }
+
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     const customHeaders = normalizeStringRecord(apiConfig.customHeaders);
     const columnMapping = normalizeStringRecord(apiConfig.columnMapping);
@@ -342,6 +356,7 @@ async function processOneLead(
       : "increment_batch_fail";
 
   try { await supabase.rpc(rpcName, { batch_uuid: batchId }); } catch (_) { /* ignore */ }
+  return true;
 }
 
 Deno.serve(async (req) => {
@@ -489,9 +504,14 @@ Deno.serve(async (req) => {
           const body = await response.json();
           if (response.ok && Array.isArray(body?.results) && body.results.length === chunk.length) {
             handledByBatchEndpoint = true;
+            let handledLeadCount = 0;
             await Promise.all(
               chunk.map((lead, index) => {
                 const result = body.results[index];
+                if (["Cancelled", "Paused", "Stopped"].includes(String(result?.status || ""))) {
+                  return Promise.resolve();
+                }
+                handledLeadCount++;
                 const leadStatus = result?.status === "Success"
                   ? "success"
                   : result?.status === "Duplicate"
@@ -507,17 +527,19 @@ Deno.serve(async (req) => {
                   .eq("id", lead.id);
               }),
             );
+            batchProcessed += handledLeadCount;
+            totalProcessed += handledLeadCount;
           }
         } catch (error) {
           console.error("Scheduled batch endpoint failed; using parallel fallback", error);
         }
 
         if (!handledByBatchEndpoint) {
-          await Promise.all(chunk.map((lead) => processOneLead(lead, apiConfig, batch.id)));
+          const fallbackResults = await Promise.all(chunk.map((lead) => processOneLead(lead, apiConfig, batch.id)));
+          const handledLeadCount = fallbackResults.filter(Boolean).length;
+          batchProcessed += handledLeadCount;
+          totalProcessed += handledLeadCount;
         }
-
-        batchProcessed += chunk.length;
-        totalProcessed += chunk.length;
 
         // One progress write per wave instead of one write per lead.
         await supabase
