@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigationType } from "react-router-dom";
-import { useEffect, useRef, memo, Suspense, lazy, forwardRef } from "react";
+import { Component, useEffect, useRef, memo, Suspense, lazy, forwardRef, type ReactNode } from "react";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { appCache } from "@/hooks/useAppCache";
 import { hasSupabaseConfig, supabaseConfigError } from "@/integrations/supabase/client";
@@ -63,6 +63,76 @@ LoadingFallback.displayName = "LoadingFallback";
 
 // Memoized Index to prevent re-renders
 const MemoizedIndex = memo(Index);
+
+class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; message: string }> {
+  state = { hasError: false, message: "" };
+
+  static getDerivedStateFromError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { hasError: true, message };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("[App] Render error recovered by boundary:", error);
+  }
+
+  private resetAppCache = () => {
+    const shouldRemoveKey = (key: string) => {
+      if (key.startsWith("sb-") || key.includes("auth-token")) return false;
+
+      return (
+        key.startsWith("app:") ||
+        key.startsWith("dekhocampus_") ||
+        key.startsWith("csv_mapping_") ||
+        key.startsWith("upload:") ||
+        key.startsWith("lead_") ||
+        key.startsWith("multipush_") ||
+        key === "theme"
+      );
+    };
+
+    const clearStorage = (storage: Storage) => {
+      const keysToRemove: string[] = [];
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        if (key && shouldRemoveKey(key)) keysToRemove.push(key);
+      }
+      keysToRemove.forEach((key) => storage.removeItem(key));
+    };
+
+    try {
+      clearStorage(localStorage);
+      clearStorage(sessionStorage);
+    } catch (error) {
+      console.warn("[App] Could not clear recoverable cache:", error);
+    }
+
+    window.location.assign("/lead-push/upload");
+  };
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="w-full max-w-xl rounded-2xl border border-destructive/30 bg-card p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-semibold text-foreground">App recovered from a page error</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            This can happen when the browser has old upload or route cache after a deployment. Resetting cache keeps your login and reloads Lead Push cleanly.
+          </p>
+          {this.state.message && (
+            <p className="mt-4 break-words rounded-lg bg-destructive/10 p-3 text-xs text-destructive">
+              {this.state.message}
+            </p>
+          )}
+          <button type="button" onClick={this.resetAppCache} className="btn-primary mt-6">
+            Reset Page Cache
+          </button>
+        </div>
+      </div>
+    );
+  }
+}
 
 // Protected layout wrapper
 function ProtectedLayout() {
@@ -215,9 +285,11 @@ const App = () => (
       <Toaster />
       <Sonner />
       {hasSupabaseConfig ? (
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
+        <AppErrorBoundary>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </AppErrorBoundary>
       ) : (
         <div className="min-h-screen bg-background flex items-center justify-center p-6">
           <div className="w-full max-w-2xl rounded-2xl border border-destructive/30 bg-card p-8 shadow-sm">
