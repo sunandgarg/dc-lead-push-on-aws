@@ -1,6 +1,6 @@
 import { Component, memo, useEffect, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, ChevronRight, Home } from 'lucide-react';
+import { ChevronRight, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UploadLeadsTab } from '@/components/upload/UploadLeadsTab';
 import { QueueMonitor } from '@/components/upload/QueueMonitor';
@@ -203,30 +203,6 @@ export function UploadLeadsView({ universities, selectedUniversity, onSelectUniv
     // processing state is shown in-page instead of rewriting the route.
   }, []);
 
-  // Navigate up one level
-  const navigateUp = useCallback(() => {
-    if (!selectedUniversity) {
-      navigate('/lead-push');
-      return;
-    }
-    
-    const uniSlug = selectedUniversity.slug || toSlug(selectedUniversity.name);
-    
-    if (processingState !== 'idle') {
-      // Remove processing state, keep filename
-      if (fileName) {
-        navigate(`/lead-push/upload/${uniSlug}/${encodeFilename(fileName)}`);
-      } else {
-        navigate(`/lead-push/upload/${uniSlug}`);
-      }
-    } else if (fileName) {
-      // Remove filename
-      navigate(`/lead-push/upload/${uniSlug}`);
-    } else {
-      navigate('/lead-push');
-    }
-  }, [selectedUniversity, fileName, processingState, navigate]);
-
   // Clear file from URL
   const handleClearFile = useCallback(() => {
     if (!selectedUniversity) return;
@@ -275,17 +251,6 @@ export function UploadLeadsView({ universities, selectedUniversity, onSelectUniv
 
   return (
     <div className="container mx-auto px-4 py-6">
-      {/* Back button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={navigateUp}
-        className="mb-4 text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        {fileName || processingState !== 'idle' ? 'Back' : 'Back to Lead Push'}
-      </Button>
-      
       {/* Breadcrumbs */}
       {breadcrumbs.length > 0 && (
         <nav className="flex items-center gap-1 text-sm mb-4 flex-wrap">
