@@ -112,6 +112,7 @@ Deno.serve(async (req) => {
 
         const normalizedEmail = String(email).trim().toLowerCase();
         const normalizedName = String(full_name || normalizedEmail).trim();
+        const normalizedRole = ["user", "admin", "super_admin"].includes(String(role)) ? String(role) : "user";
 
         let { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
           email: normalizedEmail,
@@ -158,6 +159,7 @@ Deno.serve(async (req) => {
           approved_by: caller.id,
           approved_at: new Date().toISOString(),
           full_name: normalizedName,
+          role: normalizedRole,
         }, { onConflict: "id" });
         if (profileError) throw profileError;
 
@@ -167,10 +169,10 @@ Deno.serve(async (req) => {
           .delete()
           .eq("user_id", newUser.user.id);
         if (clearRoleError) throw clearRoleError;
-        if (role === "admin" || role === "super_admin") {
+        if (normalizedRole === "admin" || normalizedRole === "super_admin") {
           const { error: roleError } = await adminClient.from("user_roles").insert({
             user_id: newUser.user.id,
-            role,
+            role: normalizedRole,
           });
           if (roleError) throw roleError;
         }
