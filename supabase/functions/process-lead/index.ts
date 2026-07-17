@@ -166,9 +166,33 @@ function normalizeLeadSquaredTrackingFields(payload: Record<string, string>) {
   if (campaignValue) payload.leadCampaign = campaignValue;
 }
 
+function ensureLeadSquaredTrackingFields(payload: Record<string, string>, apiConfig: LeadPayload["apiConfig"]) {
+  if (!payload.leadSource && apiConfig.source) payload.leadSource = apiConfig.source;
+  if (!payload.leadMedium && apiConfig.medium) payload.leadMedium = apiConfig.medium;
+  if (!payload.leadCampaign && apiConfig.campaign) payload.leadCampaign = apiConfig.campaign;
+}
+
 function buildLeadSquaredAttributePayload(payload: Record<string, string>): Array<{ Attribute: string; Value: string }> {
+  const preferredOrder = [
+    "FirstName",
+    "EmailAddress",
+    "Phone",
+    "mx_State",
+    "mx_City",
+    "mx_Course",
+    "leadSource",
+    "leadMedium",
+    "leadCampaign",
+  ];
+  const orderIndex = new Map(preferredOrder.map((key, index) => [key, index]));
+
   return Object.entries(payload)
     .filter(([_, value]) => value !== undefined && value !== null && String(value).trim() !== "")
+    .sort(([left], [right]) => {
+      const leftIndex = orderIndex.has(left) ? orderIndex.get(left)! : preferredOrder.length;
+      const rightIndex = orderIndex.has(right) ? orderIndex.get(right)! : preferredOrder.length;
+      return leftIndex === rightIndex ? 0 : leftIndex - rightIndex;
+    })
     .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
 }
 
@@ -300,6 +324,19 @@ function categorizeResponse(httpStatus: number, responseBody: string, isHttpOk: 
       const jr = JSON.parse(responseBody);
       const errCode = String(jr.errorCode || jr.error_code || "").toLowerCase();
       const jrStatus = String(jr.status || jr.Status || "").toLowerCase();
+      const leadSquaredIsCreated =
+        jr?.Message && typeof jr.Message === "object" && "IsCreated" in jr.Message
+          ? jr.Message.IsCreated
+          : jr.IsCreated;
+
+      // LeadSquared: IsCreated=true is a new lead; false is an accepted
+      // existing/secondary lead and should not be shown as a hard failure.
+      if (leadSquaredIsCreated === false) {
+        return "Duplicate";
+      }
+      if (leadSquaredIsCreated === true) {
+        return "Success";
+      }
 
       if (errCode === "duplicate" || jrStatus === "duplicate") {
         return "Duplicate";
@@ -341,13 +378,9 @@ function categorizeResponse(httpStatus: number, responseBody: string, isHttpOk: 
         return "Success";
       }
 
-      // LeadSquared: IsCreated=true → new/primary lead (Success), false → existing/secondary (Duplicate)
-      if (jr.IsCreated === false) {
-        return "Duplicate";
-      }
       if (
         jrStatus === "success" || jr.status === true || jr.status === 1 ||
-        jr.success === true || jr.success === 1 || jr.IsCreated === true ||
+        jr.success === true || jr.success === 1 ||
         jr.result === true || jr.result === 1 ||
         String(jr.result || jr.Result || "").toLowerCase() === "success" || jr.message === "1"
       ) {
@@ -687,11 +720,15 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
         if (apiKey && !formPayload[apiKey]) formPayload[apiKey] = value;
       }
     });
+    Object.entries(staticFields).forEach(([key, value]) => {
+      if (value && !formPayload[key]) formPayload[key] = value;
+    });
     if (apiConfig.apiType === "meritto" || apiConfig.apiType === "nopaperforms") {
       normalizeMerittoNoPaperFormsPayload(formPayload, apiConfig);
     }
     if (apiConfig.apiType === "leadsquared") {
       normalizeLeadSquaredTrackingFields(formPayload);
+      ensureLeadSquaredTrackingFields(formPayload, apiConfig);
       payload = buildLeadSquaredAttributePayload(formPayload);
     } else {
       payload = formPayload;
@@ -703,6 +740,7 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     });
     Object.entries(staticFields).forEach(([key, value]) => { if (value) lsPayload[key] = value; });
     normalizeLeadSquaredTrackingFields(lsPayload);
+    ensureLeadSquaredTrackingFields(lsPayload, apiConfig);
     payload = buildLeadSquaredAttributePayload(lsPayload);
   } else if (apiConfig.apiType === "meritto" || apiConfig.apiType === "nopaperforms") {
     const formData: Record<string, string> = {};
@@ -748,9 +786,15 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
 
   if (apiConfig.apiType === "leadsquared" && !Array.isArray(payload)) {
     const flat = payload as Record<string, string>;
+    normalizeLeadSquaredTrackingFields(flat);
+    ensureLeadSquaredTrackingFields(flat, apiConfig);
     payload = buildLeadSquaredAttributePayload(flat);
   } else {
     payload = normalizeCustomUiPublisherPayload(payload, apiConfig.apiUrl);
+  }
+
+  if (apiConfig.apiType === "leadsquared") {
+    headers["Content-Type"] = "application/json";
   }
 
   return { payload, headers };

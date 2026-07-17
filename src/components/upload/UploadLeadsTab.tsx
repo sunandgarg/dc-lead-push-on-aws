@@ -1003,9 +1003,31 @@ export function UploadLeadsTab({
     if (campaignValue) payload.leadCampaign = campaignValue;
   };
 
+  const ensureLeadSquaredTrackingFields = (payload: Record<string, string>) => {
+    if (!payload.leadSource && selectedUniversity?.source) payload.leadSource = selectedUniversity.source;
+    if (!payload.leadMedium && selectedUniversity?.medium) payload.leadMedium = selectedUniversity.medium;
+    if (!payload.leadCampaign && selectedUniversity?.campaign) payload.leadCampaign = selectedUniversity.campaign;
+  };
+
   const buildLeadSquaredAttributePayload = (payload: Record<string, string>) =>
     Object.entries(payload)
       .filter(([_, value]) => value !== undefined && value !== null && String(value).trim() !== "")
+      .sort(([left], [right]) => {
+        const preferredOrder = [
+          "FirstName",
+          "EmailAddress",
+          "Phone",
+          "mx_State",
+          "mx_City",
+          "mx_Course",
+          "leadSource",
+          "leadMedium",
+          "leadCampaign",
+        ];
+        const leftIndex = preferredOrder.includes(left) ? preferredOrder.indexOf(left) : preferredOrder.length;
+        const rightIndex = preferredOrder.includes(right) ? preferredOrder.indexOf(right) : preferredOrder.length;
+        return leftIndex === rightIndex ? 0 : leftIndex - rightIndex;
+      })
       .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
 
   const buildMappedPayloadPreview = (lead: Lead): string => {
@@ -1064,6 +1086,11 @@ export function UploadLeadsTab({
         const mappedKey = customColumnApiMapping[key] || columnMapping[key];
         if (mappedKey && !payload[mappedKey]) payload[mappedKey] = value;
       });
+      Object.entries(columnMapping).forEach(([key, value]) => {
+        if (key.startsWith("__static_") && value && !payload[key.replace("__static_", "")]) {
+          payload[key.replace("__static_", "")] = value;
+        }
+      });
 
       if (apiType === "meritto" || apiType === "nopaperforms") {
         if (selectedUniversity.college_id && !payload.college_id) {
@@ -1074,6 +1101,7 @@ export function UploadLeadsTab({
 
       if (apiType === "leadsquared") {
         normalizeLeadSquaredTrackingFields(payload);
+        ensureLeadSquaredTrackingFields(payload);
         return JSON.stringify(buildLeadSquaredAttributePayload(payload), null, 2);
       }
 
@@ -1094,6 +1122,7 @@ export function UploadLeadsTab({
         }
       });
       normalizeLeadSquaredTrackingFields(trackingPayload);
+      ensureLeadSquaredTrackingFields(trackingPayload);
       return JSON.stringify(buildLeadSquaredAttributePayload(trackingPayload), null, 2);
     }
 
