@@ -941,11 +941,35 @@ export function UploadLeadsTab({
       [string, string]
     >;
 
-    if (apiType === "leadsquared") {
+    if (apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(selectedUniversity.api_url)) {
       const payload = entries.map(([key, value]) => ({
         Attribute: customColumnApiMapping[key] || columnMapping[key] || key,
         Value: value,
       }));
+      return JSON.stringify(normalizeCustomUiPublisherPayload(payload), null, 2);
+    }
+
+    if (isLeadSquaredCustomUiPublisher(selectedUniversity.api_url)) {
+      const payload: Record<string, string> = {
+        secret_key: selectedUniversity.secret_key ? "[hidden]" : "",
+        source: lead.leadSource?.trim() || selectedUniversity.source,
+        medium: lead.leadMedium?.trim() || selectedUniversity.medium,
+        campaign: lead.leadCampaign?.trim() || selectedUniversity.campaign,
+      };
+
+      entries.forEach(([key, value]) => {
+        const mappedKey = customColumnApiMapping[key] || columnMapping[key] || key;
+        if (!["leadSource", "leadMedium", "leadCampaign"].includes(key)) {
+          payload[mappedKey] = value;
+        }
+      });
+
+      Object.entries(columnMapping).forEach(([key, value]) => {
+        if (key.startsWith("__static_") && value) {
+          payload[key.replace("__static_", "")] = value;
+        }
+      });
+
       return JSON.stringify(normalizeCustomUiPublisherPayload(payload), null, 2);
     }
 
