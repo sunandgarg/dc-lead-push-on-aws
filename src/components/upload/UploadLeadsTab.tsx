@@ -154,6 +154,7 @@ interface University {
   auth_header_key?: string;
   auth_header_value?: string;
   custom_headers?: Record<string, string>;
+  default_values?: Record<string, string>;
 }
 
 function parseJsonLike<T>(value: unknown, fallback: T): T {
@@ -332,6 +333,7 @@ function normalizeUniversityRecord(raw: any): University {
     auth_header_key: String(raw?.auth_header_key ?? ""),
     auth_header_value: String(raw?.auth_header_value ?? ""),
     custom_headers: normalizeKeyValueRecord(raw?.custom_headers),
+    default_values: normalizeKeyValueRecord(raw?.default_values),
   } as University;
 }
 
@@ -1012,6 +1014,7 @@ export function UploadLeadsTab({
     const apiType = selectedUniversity.api_type || "nopaperforms";
     const columnMapping = selectedUniversity.column_mapping || {};
     const customColumns = selectedUniversity.customColumns || [];
+    const universityDefaults = selectedUniversity.default_values || {};
     const payloadFields = getPayloadFieldDefinitions(columnMapping);
 
     const customColumnApiMapping: Record<string, string> = {};
@@ -1024,6 +1027,12 @@ export function UploadLeadsTab({
     const entries = Object.entries(lead).filter(([, v]) => typeof v === "string" && v.trim()) as Array<
       [string, string]
     >;
+    const leadWithDefaults: Lead = { ...lead };
+    Object.entries(universityDefaults).forEach(([key, value]) => {
+      if (value && !leadWithDefaults[key]?.trim()) {
+        leadWithDefaults[key] = value;
+      }
+    });
 
     if (payloadFields.length > 0) {
       const payload: Record<string, string> = {};
@@ -1033,19 +1042,19 @@ export function UploadLeadsTab({
         let value = "";
         if (field.sourceType === "lead_data") {
           const sourceKey = field.sourceKey?.trim() || field.fieldName;
-          value = readPreviewLeadValue(lead, sourceKey, field.fieldName);
+          value = readPreviewLeadValue(leadWithDefaults, sourceKey, field.fieldName);
         } else if (field.sourceType === "static") {
           value = field.staticValue || "";
         } else if (field.sourceType === "dynamic") {
           switch (field.dynamicType) {
             case "source":
-              value = lead.leadSource?.trim() || selectedUniversity.source || "";
+              value = leadWithDefaults.leadSource?.trim() || selectedUniversity.source || "";
               break;
             case "medium":
-              value = lead.leadMedium?.trim() || selectedUniversity.medium || "";
+              value = leadWithDefaults.leadMedium?.trim() || selectedUniversity.medium || "";
               break;
             case "campaign":
-              value = lead.leadCampaign?.trim() || selectedUniversity.campaign || "";
+              value = leadWithDefaults.leadCampaign?.trim() || selectedUniversity.campaign || "";
               break;
             case "college_id":
               value = selectedUniversity.college_id || "";
@@ -1058,7 +1067,8 @@ export function UploadLeadsTab({
         if (value || field.isRequired) payload[field.fieldName] = value;
       });
 
-      entries.forEach(([key, value]) => {
+      Object.entries(leadWithDefaults).forEach(([key, value]) => {
+        if (!value || typeof value !== "string" || ["leadSource", "leadMedium", "leadCampaign"].includes(key)) return;
         if (["leadSource", "leadMedium", "leadCampaign"].includes(key)) return;
         const mappedKey = customColumnApiMapping[key] || columnMapping[key];
         if (mappedKey && !payload[mappedKey]) payload[mappedKey] = value;
@@ -1083,7 +1093,8 @@ export function UploadLeadsTab({
 
     if (apiType === "leadsquared") {
       const trackingPayload: Record<string, string> = {};
-      entries.forEach(([key, value]) => {
+      Object.entries(leadWithDefaults).forEach(([key, value]) => {
+        if (!value || typeof value !== "string") return;
         const mappedKey = customColumnApiMapping[key] || columnMapping[key] || key;
         trackingPayload[mappedKey] = value;
       });
@@ -1946,7 +1957,7 @@ export function UploadLeadsTab({
       customHeaders: selectedUniversity.custom_headers || {},
       apiTimeoutSeconds:
         clampUniversityNumber(selectedUniversity.api_timeout_seconds, 30, 5, 300),
-      universityDefaults: {}, // Will be resolved by edge function only if needed
+      universityDefaults: selectedUniversity.default_values || {},
     };
   }, [selectedUniversity]);
 
