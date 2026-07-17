@@ -932,7 +932,7 @@ export function UploadLeadsTab({
   };
 
   const normalizeMerittoNoPaperFormsPayload = (payload: Record<string, string>) => {
-    canonicalizePayloadField(payload, "campus", ["Campus"]);
+    addFirstAvailablePayloadAlias(payload, ["campus", "Campus"]);
     canonicalizePayloadField(payload, "course", ["Course"]);
     canonicalizePayloadField(payload, "specialization", [
       "Specialization",

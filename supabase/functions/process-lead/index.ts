@@ -131,7 +131,7 @@ function canonicalizeField(payload: Record<string, string>, canonicalKey: string
 
 function normalizeMerittoNoPaperFormsPayload(payload: Record<string, string>, apiConfig: LeadPayload["apiConfig"]) {
   if (apiConfig.collegeId && !payload.college_id) payload.college_id = apiConfig.collegeId;
-  canonicalizeField(payload, "campus", ["Campus"]);
+  addFirstAvailableAlias(payload, FIELD_ALIASES.campus);
   canonicalizeField(payload, "course", ["Course"]);
   canonicalizeField(payload, "specialization", [
     "Specialization",
