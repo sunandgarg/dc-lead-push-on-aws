@@ -1083,6 +1083,11 @@ export function UploadLeadsTab({
         }
       });
 
+      if (selectedUniversity.college_id && !payload.college_id) {
+        payload.college_id = selectedUniversity.college_id;
+      }
+      addAcademicPayloadAliases(payload);
+
       return JSON.stringify(payload, null, 2);
     }
 

@@ -115,6 +115,13 @@ function addAcademicFieldAliases(payload: Record<string, string>) {
   addFirstAvailableAlias(payload, FIELD_ALIASES.specialization);
 }
 
+function normalizeMerittoNoPaperFormsPayload(payload: Record<string, string>, apiConfig: LeadPayload["apiConfig"]) {
+  if (apiConfig.collegeId && !payload.college_id) payload.college_id = apiConfig.collegeId;
+  addFirstAvailableAlias(payload, FIELD_ALIASES.campus);
+  addFirstAvailableAlias(payload, FIELD_ALIASES.course);
+  addFirstAvailableAlias(payload, FIELD_ALIASES.specialization);
+}
+
 function normalizeCustomUiPublisherPayload(payload: unknown, apiUrl?: string): unknown {
   if (!isLeadSquaredCustomUiPublisher(apiUrl) || Array.isArray(payload) || !payload || typeof payload !== "object") {
     return payload;
@@ -640,6 +647,9 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
         if (apiKey && !formPayload[apiKey]) formPayload[apiKey] = value;
       }
     });
+    if (apiConfig.apiType === "meritto" || apiConfig.apiType === "nopaperforms") {
+      normalizeMerittoNoPaperFormsPayload(formPayload, apiConfig);
+    }
     payload = formPayload;
   } else if (isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
     const customUiPayload: Record<string, string> = {};
@@ -672,6 +682,7 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     formData[fieldMappings["source"] || "source"] = leadDataWithDefaults.leadSource || apiConfig.source;
     formData.secret_key = apiConfig.secretKey;
     Object.entries(staticFields).forEach(([key, value]) => { formData[key] = value; });
+    normalizeMerittoNoPaperFormsPayload(formData, apiConfig);
     payload = formData;
   } else {
     const genericPayload: Record<string, string> = {};

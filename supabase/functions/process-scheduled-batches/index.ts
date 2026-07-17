@@ -77,6 +77,11 @@ function addAcademicFieldAliases(payload: Record<string, string>) {
   addFirstAvailableAlias(payload, FIELD_ALIASES.specialization);
 }
 
+function normalizeMerittoNoPaperFormsPayload(payload: Record<string, string>, apiConfig: Record<string, any>) {
+  if (apiConfig.collegeId && !payload.college_id) payload.college_id = apiConfig.collegeId;
+  addAcademicFieldAliases(payload);
+}
+
 function normalizeCustomUiPublisherPayload(payload: unknown, apiUrl?: string): unknown {
   if (!isLeadSquaredCustomUiPublisher(apiUrl) || Array.isArray(payload) || !payload || typeof payload !== "object") {
     return payload;
@@ -339,6 +344,7 @@ async function processOneLead(
       formData[fieldMappings["source"] || "source"] = leadData.leadSource || apiConfig.source;
       formData.secret_key = apiConfig.secretKey;
       Object.entries(staticFields).forEach(([key, value]) => { formData[key] = value; });
+      normalizeMerittoNoPaperFormsPayload(formData, apiConfig);
       payload = formData;
     } else {
       const genericPayload: Record<string, string> = {};
