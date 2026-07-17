@@ -21,6 +21,7 @@ interface LeadPushModuleProps {
   onAddUniversity: () => void;
   onEditUniversity: (uni: any) => void;
   onDeleteUniversity: (id: string) => void;
+  onBulkDeleteUniversities?: (ids: string[]) => void;
   onSelectUploadUniversity: (uni: any) => void;
   selectedUploadUniversity: any | null;
   onBulkImport?: (configs: any[]) => void;
@@ -36,6 +37,7 @@ export function LeadPushModule({
   onAddUniversity,
   onEditUniversity,
   onDeleteUniversity,
+  onBulkDeleteUniversities,
   onSelectUploadUniversity,
   selectedUploadUniversity,
   onBulkImport,
@@ -112,6 +114,7 @@ export function LeadPushModule({
           onAdd={onAddUniversity}
           onEdit={onEditUniversity}
           onDelete={onDeleteUniversity}
+          onBulkDelete={onBulkDeleteUniversities}
           onRefresh={onUniversitiesChange}
           onBulkImport={onBulkImport}
         />

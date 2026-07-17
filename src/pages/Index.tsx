@@ -570,6 +570,33 @@ const Index = () => {
     }
   };
 
+  const handleBulkDeleteUniversities = async (ids: string[]) => {
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+    if (uniqueIds.length === 0) return;
+
+    try {
+      await Promise.all([
+        supabase.from('programs').delete().in('university_id', uniqueIds),
+        supabase.from('state_cities').delete().in('university_id', uniqueIds),
+        supabase.from('course_specializations').delete().in('university_id', uniqueIds),
+      ]);
+
+      const { error } = await supabase
+        .from('universities')
+        .delete()
+        .in('id', uniqueIds);
+
+      if (error) throw error;
+
+      setSelectedUploadUniversityState((current) => (current?.id && uniqueIds.includes(current.id) ? null : current));
+      toast({ title: 'Deleted', description: `${uniqueIds.length} universities deleted successfully` });
+      fetchUniversities();
+    } catch (error) {
+      console.error('Error bulk deleting universities:', error);
+      toast({ title: 'Error', description: 'Failed to delete universities', variant: 'destructive' });
+    }
+  };
+
   const handleSelectUploadUniversity = useCallback((uni: any) => {
     setSelectedUploadUniversityState(uni);
     const slug = uni.slug || uni.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -746,6 +773,7 @@ const Index = () => {
             onAddUniversity={openAddModal}
             onEditUniversity={handleEditUniversity}
             onDeleteUniversity={handleDeleteUniversity}
+            onBulkDeleteUniversities={handleBulkDeleteUniversities}
             onSelectUploadUniversity={handleSelectUploadUniversity}
             selectedUploadUniversity={selectedUploadUniversity}
             onBulkImport={handleBulkImport}

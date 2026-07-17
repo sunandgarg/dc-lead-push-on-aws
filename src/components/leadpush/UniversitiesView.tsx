@@ -30,11 +30,12 @@ interface UniversitiesViewProps {
   onAdd: () => void;
   onEdit: (uni: any) => void;
   onDelete: (id: string) => void;
+  onBulkDelete?: (ids: string[]) => void;
   onRefresh: () => void;
   onBulkImport?: (configs: UniversityExportData[]) => void;
 }
 
-export function UniversitiesView({ universities, onAdd, onEdit, onDelete, onRefresh, onBulkImport }: UniversitiesViewProps) {
+export function UniversitiesView({ universities, onAdd, onEdit, onDelete, onBulkDelete, onRefresh, onBulkImport }: UniversitiesViewProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
@@ -53,6 +54,22 @@ export function UniversitiesView({ universities, onAdd, onEdit, onDelete, onRefr
       (uni) => uni.name?.toLowerCase().includes(term) || uni.api_url?.toLowerCase().includes(term),
     );
   }, [apiUniversities, searchTerm]);
+
+  const bulkDeleteLabel = searchTerm.trim() ? "Delete Filtered" : "Delete All";
+  const bulkDeleteCount = filteredUniversities.length;
+
+  const handleBulkDelete = () => {
+    if (!onBulkDelete || bulkDeleteCount === 0) return;
+    const scope = searchTerm.trim() ? "filtered universities" : "universities";
+    const confirmation = window.prompt(
+      `This will permanently delete ${bulkDeleteCount} ${scope} and their programs, states/cities, and course/specialization data.\n\nType DELETE to confirm.`,
+    );
+    if (confirmation !== "DELETE") {
+      toast({ title: "Cancelled", description: "Bulk delete was not confirmed." });
+      return;
+    }
+    onBulkDelete(filteredUniversities.map((university) => university.id));
+  };
 
   const togglePanel = (id: string) => {
     setExpandedPanels((prev) => {
@@ -122,6 +139,16 @@ export function UniversitiesView({ universities, onAdd, onEdit, onDelete, onRefr
         </div>
         <div className="flex items-center gap-2">
           <BulkImportExport universities={apiUniversities} onBulkImport={onBulkImport} />
+          <Button
+            variant="destructive"
+            onClick={handleBulkDelete}
+            disabled={!onBulkDelete || bulkDeleteCount === 0}
+            className="gap-2"
+            title={searchTerm.trim() ? "Delete universities matching current search" : "Delete all configured universities"}
+          >
+            <Trash2 className="h-4 w-4" />
+            {bulkDeleteLabel} ({bulkDeleteCount})
+          </Button>
           <Button onClick={onAdd} className="gap-2">
             <Plus className="h-4 w-4" />
             Add University
