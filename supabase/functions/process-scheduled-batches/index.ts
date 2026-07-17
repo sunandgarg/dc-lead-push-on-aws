@@ -70,8 +70,9 @@ function normalizeCustomUiPublisherPayload(payload: unknown, apiUrl?: string): u
   }
 
   const normalized = { ...(payload as Record<string, string>) };
-  addFirstAvailableAlias(normalized, ["Course", "course"]);
-  addFirstAvailableAlias(normalized, ["Specialization", "Specialisation", "specialization", "specialisation"]);
+  addFirstAvailableAlias(normalized, ["campus", "Campus"]);
+  addFirstAvailableAlias(normalized, ["course", "Course"]);
+  addFirstAvailableAlias(normalized, ["specialization", "Specialization", "Specialisation", "specialisation"]);
   return normalized;
 }
 

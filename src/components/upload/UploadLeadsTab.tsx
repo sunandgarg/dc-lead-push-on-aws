@@ -917,8 +917,9 @@ export function UploadLeadsTab({
     }
 
     const normalized = { ...(payload as Record<string, string>) };
-    addFirstAvailablePayloadAlias(normalized, ["Course", "course"]);
-    addFirstAvailablePayloadAlias(normalized, ["Specialization", "Specialisation", "specialization", "specialisation"]);
+    addFirstAvailablePayloadAlias(normalized, ["campus", "Campus"]);
+    addFirstAvailablePayloadAlias(normalized, ["course", "Course"]);
+    addFirstAvailablePayloadAlias(normalized, ["specialization", "Specialization", "Specialisation", "specialisation"]);
     return normalized;
   };
 
