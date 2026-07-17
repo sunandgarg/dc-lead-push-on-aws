@@ -166,6 +166,12 @@ function normalizeLeadSquaredTrackingFields(payload: Record<string, string>) {
   if (campaignValue) payload.leadCampaign = campaignValue;
 }
 
+function buildLeadSquaredAttributePayload(payload: Record<string, string>): Array<{ Attribute: string; Value: string }> {
+  return Object.entries(payload)
+    .filter(([_, value]) => value !== undefined && value !== null && String(value).trim() !== "")
+    .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
+}
+
 async function getBlockedBatchIds(batchIds: string[]): Promise<Set<string>> {
   if (batchIds.length === 0) return new Set();
 
@@ -686,9 +692,7 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     }
     if (apiConfig.apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
       normalizeLeadSquaredTrackingFields(formPayload);
-      payload = Object.entries(formPayload)
-        .filter(([_, v]) => v !== undefined && v !== null && v !== "")
-        .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
+      payload = buildLeadSquaredAttributePayload(formPayload);
     } else {
       payload = formPayload;
     }
@@ -712,7 +716,7 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     });
     Object.entries(staticFields).forEach(([key, value]) => { if (value) lsPayload[key] = value; });
     normalizeLeadSquaredTrackingFields(lsPayload);
-    payload = lsPayload;
+    payload = buildLeadSquaredAttributePayload(lsPayload);
   } else if (apiConfig.apiType === "meritto" || apiConfig.apiType === "nopaperforms") {
     const formData: Record<string, string> = {};
     Object.entries(leadDataWithDefaults).forEach(([key, value]) => {
@@ -757,9 +761,7 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
 
   if (apiConfig.apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(apiConfig.apiUrl) && !Array.isArray(payload)) {
     const flat = payload as Record<string, string>;
-    payload = Object.entries(flat)
-      .filter(([_, v]) => v !== undefined && v !== null && v !== "")
-      .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
+    payload = buildLeadSquaredAttributePayload(flat);
   } else {
     payload = normalizeCustomUiPublisherPayload(payload, apiConfig.apiUrl);
   }

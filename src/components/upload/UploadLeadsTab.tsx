@@ -1001,6 +1001,11 @@ export function UploadLeadsTab({
     if (campaignValue) payload.leadCampaign = campaignValue;
   };
 
+  const buildLeadSquaredAttributePayload = (payload: Record<string, string>) =>
+    Object.entries(payload)
+      .filter(([_, value]) => value !== undefined && value !== null && String(value).trim() !== "")
+      .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
+
   const buildMappedPayloadPreview = (lead: Lead): string => {
     if (!selectedUniversity) return "";
 
@@ -1068,13 +1073,7 @@ export function UploadLeadsTab({
 
       if (apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(selectedUniversity.api_url)) {
         normalizeLeadSquaredTrackingFields(payload);
-        return JSON.stringify(
-          Object.entries(payload)
-            .filter(([_, value]) => value !== undefined && value !== null && String(value).trim() !== "")
-            .map(([key, value]) => ({ Attribute: key, Value: String(value) })),
-          null,
-          2,
-        );
+        return JSON.stringify(buildLeadSquaredAttributePayload(payload), null, 2);
       }
 
       const normalizedPayload = normalizeCustomUiPublisherPayload(payload);
@@ -1094,22 +1093,7 @@ export function UploadLeadsTab({
         }
       });
       normalizeLeadSquaredTrackingFields(trackingPayload);
-      const payload = entries.map(([key, value]) => ({
-        Attribute: customColumnApiMapping[key] || columnMapping[key] || key,
-        Value: value,
-      }));
-      Object.entries(columnMapping).forEach(([key, value]) => {
-        if (key.startsWith("__static_") && value) {
-          payload.push({ Attribute: key.replace("__static_", ""), Value: value });
-        }
-      });
-      return JSON.stringify(
-        Object.entries(trackingPayload)
-          .filter(([_, value]) => value !== undefined && value !== null && String(value).trim() !== "")
-          .map(([key, value]) => ({ Attribute: key, Value: String(value) })),
-        null,
-        2,
-      );
+      return JSON.stringify(buildLeadSquaredAttributePayload(trackingPayload), null, 2);
     }
 
     if (isLeadSquaredCustomUiPublisher(selectedUniversity.api_url)) {
