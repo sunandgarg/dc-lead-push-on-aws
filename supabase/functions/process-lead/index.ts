@@ -690,7 +690,6 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
       lsPayload[fieldMappings[key] || key] = value;
     });
     Object.entries(staticFields).forEach(([key, value]) => { if (value) lsPayload[key] = value; });
-    if (apiConfig.secretKey && !lsPayload.secret_key) lsPayload.secret_key = apiConfig.secretKey;
     payload = lsPayload;
   } else if (apiConfig.apiType === "meritto" || apiConfig.apiType === "nopaperforms") {
     const formData: Record<string, string> = {};

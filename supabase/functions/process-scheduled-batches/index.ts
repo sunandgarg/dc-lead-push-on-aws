@@ -250,7 +250,6 @@ async function processOneLead(
         lsPayload[fieldMappings[key] || key] = value;
       });
       Object.entries(staticFields).forEach(([key, value]) => { if (value) lsPayload[key] = value; });
-      if (apiConfig.secretKey && !lsPayload.secret_key) lsPayload.secret_key = apiConfig.secretKey;
       payload = Object.entries(lsPayload)
         .filter(([_, v]) => v !== undefined && v !== null && v !== "")
         .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
