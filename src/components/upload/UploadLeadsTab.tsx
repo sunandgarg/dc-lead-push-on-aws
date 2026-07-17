@@ -471,32 +471,6 @@ function getPayloadTargetForHeader(header: string, columnMapping: Record<string,
   return field ? field.sourceKey?.trim() || field.fieldName?.trim() || "" : "";
 }
 
-function normalizeCsvMappingTargets(
-  mapping: Record<string, string>,
-  columnMapping: Record<string, string> = {},
-): Record<string, string> {
-  const payloadFields = getPayloadFieldDefinitions(columnMapping);
-
-  const resolveTarget = (target: string): string => {
-    const normalizedTarget = normalizeMappingToken(target);
-    if (!normalizedTarget) return "";
-
-    const matchedField = payloadFields.find((field) => {
-      if (field.sourceType && field.sourceType !== "lead_data") return false;
-      return [field.sourceKey, field.fieldName, field.displayName]
-        .filter(Boolean)
-        .some((value) => normalizeMappingToken(value) === normalizedTarget);
-    });
-
-    if (!matchedField) return target;
-    return matchedField.sourceKey?.trim() || matchedField.fieldName?.trim() || target;
-  };
-
-  return Object.fromEntries(
-    Object.entries(mapping).map(([header, target]) => [header, resolveTarget(stringifyUiValue(target))]),
-  );
-}
-
 function purgeStorageEntries(storage: Storage, keys: Set<string>, prefixes: string[]) {
   const keysToRemove: string[] = [];
 
@@ -1441,10 +1415,7 @@ export function UploadLeadsTab({
       let savedMapping: Record<string, string> | null = null;
       try {
         if (savedMappingRaw) {
-          savedMapping = normalizeCsvMappingTargets(
-            normalizeCsvMapping(JSON.parse(savedMappingRaw)),
-            selectedUniversity.column_mapping || {},
-          );
+          savedMapping = normalizeCsvMapping(JSON.parse(savedMappingRaw));
           // Replace old/bad cache immediately, so the same broken mapping
           // cannot crash the modal again on the next upload.
           localStorage.setItem(savedMappingKey, JSON.stringify(savedMapping));
@@ -1584,10 +1555,7 @@ export function UploadLeadsTab({
 
       try {
 
-      const activeMapping = normalizeCsvMappingTargets(
-        normalizeCsvMapping(mappingOverride ?? tempColumnMapping),
-        selectedUniversity.column_mapping || {},
-      );
+      const activeMapping = normalizeCsvMapping(mappingOverride ?? tempColumnMapping);
       if (!Array.isArray(rawData) || rawData.length === 0) {
         setAlert({
           type: "error",
