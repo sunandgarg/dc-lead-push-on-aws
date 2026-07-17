@@ -48,8 +48,10 @@ interface PayloadFieldDefinition {
   displayName?: string;
   sourceType?: "lead_data" | "static" | "dynamic";
   sourceKey?: string;
+  dynamicType?: "source" | "medium" | "campaign" | "college_id" | "secret_key";
   staticValue?: string;
   isRequired?: boolean;
+  sortOrder?: number;
 }
 
 function stringifyUiValue(value: unknown): string {
@@ -418,11 +420,43 @@ function getPayloadFieldDefinitions(columnMapping: Record<string, string> = {}):
         displayName: stringifyUiValue(rawField?.displayName) || fieldName,
         sourceKey: stringifyUiValue(rawField?.sourceKey) || undefined,
         staticValue: stringifyUiValue(rawField?.staticValue) || undefined,
+        sortOrder: Number.isFinite(Number(rawField?.sortOrder)) ? Number(rawField?.sortOrder) : 0,
       }];
     } catch {
       return [];
     }
-  });
+  }).sort((left, right) => (left.sortOrder || 0) - (right.sortOrder || 0));
+}
+
+function getPreviewAliases(field: string): string[] {
+  const normalized = String(field || "").trim().toLowerCase();
+  if (["specialisation", "specialization"].includes(normalized)) {
+    return ["specialization", "Specialization", "Specialisation", "specialisation", "specializationName", "specialization_name"];
+  }
+  if (["program", "field_program", "programname", "program_name"].includes(normalized)) {
+    return ["program", "Program", "field_program", "programName", "program_name"];
+  }
+  if (normalized === "course") return ["course", "Course"];
+  if (normalized === "campus") return ["campus", "Campus"];
+  return [field].filter(Boolean);
+}
+
+function readPreviewLeadValue(lead: Lead, ...candidates: Array<string | undefined>): string {
+  const seen = new Set<string>();
+  const expanded = candidates
+    .filter(Boolean)
+    .flatMap((candidate) => getPreviewAliases(candidate as string))
+    .filter((candidate) => {
+      if (seen.has(candidate)) return false;
+      seen.add(candidate);
+      return true;
+    });
+
+  for (const candidate of expanded) {
+    const value = lead[candidate];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "";
 }
 
 function getPayloadTargetForHeader(header: string, columnMapping: Record<string, string> = {}): string {
@@ -959,6 +993,7 @@ export function UploadLeadsTab({
     const apiType = selectedUniversity.api_type || "nopaperforms";
     const columnMapping = selectedUniversity.column_mapping || {};
     const customColumns = selectedUniversity.customColumns || [];
+    const payloadFields = getPayloadFieldDefinitions(columnMapping);
 
     const customColumnApiMapping: Record<string, string> = {};
     customColumns.forEach((col: any) => {
@@ -970,6 +1005,67 @@ export function UploadLeadsTab({
     const entries = Object.entries(lead).filter(([, v]) => typeof v === "string" && v.trim()) as Array<
       [string, string]
     >;
+
+    if (payloadFields.length > 0) {
+      const payload: Record<string, string> = {};
+
+      payloadFields.forEach((field) => {
+        if (!field.fieldName) return;
+        let value = "";
+        if (field.sourceType === "lead_data") {
+          const sourceKey = field.sourceKey?.trim() || field.fieldName;
+          value = readPreviewLeadValue(lead, sourceKey, field.fieldName);
+        } else if (field.sourceType === "static") {
+          value = field.staticValue || "";
+        } else if (field.sourceType === "dynamic") {
+          switch (field.dynamicType) {
+            case "source":
+              value = lead.leadSource?.trim() || selectedUniversity.source || "";
+              break;
+            case "medium":
+              value = lead.leadMedium?.trim() || selectedUniversity.medium || "";
+              break;
+            case "campaign":
+              value = lead.leadCampaign?.trim() || selectedUniversity.campaign || "";
+              break;
+            case "college_id":
+              value = selectedUniversity.college_id || "";
+              break;
+            case "secret_key":
+              value = selectedUniversity.secret_key ? "[hidden]" : "";
+              break;
+          }
+        }
+        if (value || field.isRequired) payload[field.fieldName] = value;
+      });
+
+      entries.forEach(([key, value]) => {
+        if (["leadSource", "leadMedium", "leadCampaign"].includes(key)) return;
+        const mappedKey = customColumnApiMapping[key] || columnMapping[key];
+        if (mappedKey && !payload[mappedKey]) payload[mappedKey] = value;
+      });
+
+      if (apiType === "meritto" || apiType === "nopaperforms") {
+        if (selectedUniversity.college_id && !payload.college_id) {
+          payload.college_id = selectedUniversity.college_id;
+        }
+        normalizeMerittoNoPaperFormsPayload(payload);
+      }
+
+      if (apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(selectedUniversity.api_url)) {
+        return JSON.stringify(
+          Object.entries(payload)
+            .filter(([_, value]) => value !== undefined && value !== null && String(value).trim() !== "")
+            .map(([key, value]) => ({ Attribute: key, Value: String(value) })),
+          null,
+          2,
+        );
+      }
+
+      const normalizedPayload = normalizeCustomUiPublisherPayload(payload);
+      const finalPayload = selectedUniversity.payload_wrapper === "array" ? [normalizedPayload] : normalizedPayload;
+      return JSON.stringify(finalPayload, null, 2);
+    }
 
     if (apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(selectedUniversity.api_url)) {
       const payload = entries.map(([key, value]) => ({
@@ -1288,9 +1384,6 @@ export function UploadLeadsTab({
       try {
         if (savedMappingRaw) {
           savedMapping = normalizeCsvMapping(JSON.parse(savedMappingRaw));
-          // Replace old/bad cache immediately, so the same broken mapping
-          // cannot crash the modal again on the next upload.
-          localStorage.setItem(savedMappingKey, JSON.stringify(savedMapping));
         }
       } catch {
         /* ignore */

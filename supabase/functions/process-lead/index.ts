@@ -647,7 +647,7 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
         // Falling back to fieldName keeps those configurations usable and makes
         // the generated sample/mapping behavior consistent with the payload.
         const sourceKey = field.sourceKey?.trim() || field.fieldName;
-        value = readLeadValue(leadDataWithDefaults, sourceKey, field.fieldName, field.displayName);
+        value = readLeadValue(leadDataWithDefaults, sourceKey, field.fieldName);
       } else if (field.sourceType === "static") {
         value = field.staticValue || "";
       } else if (field.sourceType === "dynamic") {
