@@ -114,333 +114,6 @@ function normalizeCustomUiPublisherPayload(payload: unknown, apiUrl?: string): u
   return normalized;
 }
 
-type PayloadFieldConfig = {
-  fieldName: string;
-  sourceType: "lead_data" | "static" | "dynamic";
-  sourceKey?: string;
-  dynamicType?: "source" | "medium" | "campaign" | "college_id" | "secret_key";
-  staticValue?: string;
-  displayName?: string;
-  isRequired?: boolean;
-  sortOrder: number;
-};
-
-function getFieldAliases(key: string): string[] {
-  const normalized = key.trim().toLowerCase().replace(/[\s_]+/g, "");
-  if (["specialisation", "specialization"].includes(normalized)) return FIELD_ALIASES.specialization;
-  if (["program", "field_program", "programname", "program_name"].includes(normalized)) return FIELD_ALIASES.program;
-  if (normalized === "course") return FIELD_ALIASES.course;
-  if (normalized === "campus") return FIELD_ALIASES.campus;
-  return [key];
-}
-
-function readLeadValue(leadData: Record<string, string>, ...keys: Array<string | undefined>): string {
-  for (const key of keys) {
-    if (!key) continue;
-    const aliases = getFieldAliases(key);
-    for (const alias of aliases) {
-      const value = leadData[alias];
-      if (value !== undefined && value !== null && String(value).trim() !== "") {
-        return String(value);
-      }
-    }
-  }
-  return "";
-}
-
-function buildPayload(lead: Record<string, any>, apiConfig: Record<string, any>): { payload: unknown; headers: Record<string, string> } {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const customHeaders = normalizeStringRecord(apiConfig.customHeaders);
-  const columnMapping = normalizeStringRecord(apiConfig.columnMapping);
-  const customColumnMapping = normalizeStringRecord(apiConfig.customColumnMapping);
-  const universityDefaults = normalizeStringRecord(apiConfig.universityDefaults);
-
-  if (apiConfig.authType === "bearer" && apiConfig.authHeaderValue) {
-    headers["Authorization"] = `Bearer ${apiConfig.authHeaderValue}`;
-  } else if (apiConfig.authType === "custom_header" && apiConfig.authHeaderKey && apiConfig.authHeaderValue) {
-    headers[apiConfig.authHeaderKey] = apiConfig.authHeaderValue;
-  }
-  if (customHeaders) {
-    Object.entries(customHeaders).forEach(([key, value]) => {
-      if (key && value) headers[key] = String(value);
-    });
-  }
-
-  const fieldMappings: Record<string, string> = {};
-  const staticFields: Record<string, string> = {};
-  const fixedDefaults: Record<string, string> = {};
-  const payloadFields: PayloadFieldConfig[] = [];
-
-  Object.entries(columnMapping).forEach(([key, value]) => {
-    if (key.startsWith("__static_")) {
-      staticFields[key.replace("__static_", "")] = String(value);
-    } else if (key.startsWith("__fixed_")) {
-      fixedDefaults[key.replace("__fixed_", "")] = String(value);
-    } else if (key.startsWith("__field_")) {
-      try {
-        const field = JSON.parse(String(value)) as PayloadFieldConfig;
-        if (field) payloadFields.push(field);
-      } catch {
-        // ignore malformed payload field config
-      }
-    } else {
-      fieldMappings[key] = String(value);
-    }
-  });
-
-  Object.entries(customColumnMapping).forEach(([key, value]) => {
-    if (value) fieldMappings[key] = String(value);
-  });
-
-  payloadFields.sort((a, b) => a.sortOrder - b.sortOrder);
-
-  const leadData: Record<string, string> = {};
-  const fieldMap: Record<string, string> = {
-    name: "name",
-    email: "email",
-    mobile: "mobile",
-    address: "address",
-    state: "state",
-    city: "city",
-    course: "course",
-    specialization: "specialization",
-    lead_source: "leadSource",
-    lead_medium: "leadMedium",
-    lead_campaign: "leadCampaign",
-  };
-
-  Object.entries(fieldMap).forEach(([dbCol, leadKey]) => {
-    if (lead[dbCol]) leadData[leadKey] = String(lead[dbCol]);
-  });
-
-  if (lead.extra_data && typeof lead.extra_data === "object") {
-    Object.entries(lead.extra_data).forEach(([key, value]) => {
-      if (value) leadData[key] = String(value);
-    });
-  }
-
-  const leadDataWithDefaults = { ...leadData };
-  Object.entries(fixedDefaults).forEach(([key, defaultValue]) => {
-    if (!leadDataWithDefaults[key] || !leadDataWithDefaults[key].trim()) {
-      leadDataWithDefaults[key] = defaultValue;
-    }
-  });
-  Object.entries(universityDefaults).forEach(([key, defaultValue]) => {
-    if (defaultValue && (!leadDataWithDefaults[key] || !leadDataWithDefaults[key].trim())) {
-      leadDataWithDefaults[key] = defaultValue;
-    }
-  });
-  if (!leadDataWithDefaults.leadSource?.trim()) leadDataWithDefaults.leadSource = apiConfig.source || "";
-  if (!leadDataWithDefaults.leadMedium?.trim()) leadDataWithDefaults.leadMedium = apiConfig.medium || "";
-  if (!leadDataWithDefaults.leadCampaign?.trim()) leadDataWithDefaults.leadCampaign = apiConfig.campaign || "";
-
-  let payload: unknown;
-
-  if (apiConfig.apiType === "upgrad") {
-    const src = leadDataWithDefaults.leadSource || apiConfig.source || "";
-    const med = leadDataWithDefaults.leadMedium || apiConfig.medium || "";
-    const camp = leadDataWithDefaults.leadCampaign || apiConfig.campaign || "";
-    if (src) headers["utm_source"] = src;
-    if (med) headers["utm_medium"] = med;
-    if (camp) headers["utm_campaign"] = camp;
-
-    const sk = String(apiConfig.secretKey || "").trim();
-    if (sk) {
-      if (sk.toLowerCase().startsWith("basic ")) headers["Authorization"] = sk;
-      else if (sk.includes(":")) headers["Authorization"] = `Basic ${btoa(sk)}`;
-      else headers["Authorization"] = `Basic ${sk}`;
-    }
-
-    const upgradSrcMap: Record<string, string> = {};
-    const upgradMeta: Record<string, string> = {};
-    Object.entries(columnMapping).forEach(([k, v]) => {
-      if (k.startsWith("__upgrad_src_") && v) upgradSrcMap[k.replace("__upgrad_src_", "")] = String(v);
-      else if (k.startsWith("__upgrad_meta_") && v) upgradMeta[k.replace("__upgrad_meta_", "")] = String(v);
-    });
-
-    const readField = (upgradField: string, fallbackCsv: string): string => {
-      const aliasMap: Record<string, string[]> = {
-        mobile: ["phone.number", "mobile"],
-        course: ["course", "programOfInterest"],
-        firstname: ["firstname", "name"],
-        lastname: ["lastname"],
-      };
-      const csvKey = upgradSrcMap[upgradField] || fallbackCsv;
-      const candidates = [csvKey, upgradField, ...(aliasMap[upgradField] || []), fallbackCsv];
-      for (const candidate of candidates) {
-        const value = leadDataWithDefaults[candidate];
-        if (value) return value;
-      }
-      return "";
-    };
-
-    const fullName = (leadDataWithDefaults.name || "").trim();
-    const nameParts = fullName.split(/\s+/).filter(Boolean);
-    const firstname = (readField("firstname", "firstname") || nameParts.shift() || "Lead").trim();
-    const lastname = (readField("lastname", "lastname") || nameParts.join(" ") || firstname).trim();
-    const rawMobileInput = (readField("mobile", "phone.number") || "").trim();
-    let phoneCode = (leadDataWithDefaults["phone.code"] || leadDataWithDefaults["phone.countryCode"] || "+91").trim() || "+91";
-    let phoneNumber = rawMobileInput.replace(/\D/g, "");
-    const plusMatch = rawMobileInput.match(/^\+(\d{1,3})/);
-    if (plusMatch) {
-      phoneCode = `+${plusMatch[1]}`;
-      phoneNumber = phoneNumber.slice(plusMatch[1].length);
-    } else if (phoneNumber.length === 12 && phoneNumber.startsWith("91")) {
-      phoneNumber = phoneNumber.slice(2);
-    } else if (phoneNumber.length === 11 && phoneNumber.startsWith("0")) {
-      phoneNumber = phoneNumber.slice(1);
-    }
-
-    const upPayload: Record<string, unknown> = {
-      firstname,
-      lastname,
-      email: readField("email", "email"),
-      phone: { number: phoneNumber, code: phoneCode },
-      course: readField("course", "course"),
-      sendWelcomeMail: false,
-      city: readField("city", "city"),
-      state: readField("state", "state"),
-      country: leadDataWithDefaults.country || upgradMeta.country || "India",
-      isDetectLocation: false,
-      affiliateSource: leadDataWithDefaults.affiliateSource || upgradMeta.affiliateSource || "aff_id=1&sub_aff_id=12",
-      leadSource: {
-        platform: leadDataWithDefaults["leadSource.platform"] || "",
-        platformSection: leadDataWithDefaults["leadSource.platformSection"] || "",
-      },
-      extraFields: {
-        chatLink: leadDataWithDefaults["extraFields.chatLink"] || upgradMeta.chatLink || "haptik.com/1234567",
-      },
-      emailTemplateSuffix: leadDataWithDefaults.emailTemplateSuffix || upgradMeta.emailTemplateSuffix || "in",
-    };
-
-    Object.entries(staticFields).forEach(([k, v]) => {
-      if (!v) return;
-      if (k === "extraFields.LSQID") return;
-      if (k.includes(".")) {
-        const segments = k.split(".");
-        let cursor = upPayload as Record<string, unknown>;
-        for (let i = 0; i < segments.length - 1; i++) {
-          const seg = segments[i];
-          if (typeof cursor[seg] !== "object" || cursor[seg] === null) cursor[seg] = {};
-          cursor = cursor[seg] as Record<string, unknown>;
-        }
-        cursor[segments[segments.length - 1]] = v;
-      } else {
-        upPayload[k] = v;
-      }
-    });
-    payload = upPayload;
-  } else if (payloadFields.length > 0) {
-    const formPayload: Record<string, string> = {};
-    payloadFields.forEach((field) => {
-      if (!field.fieldName) return;
-      let value = "";
-      if (field.sourceType === "lead_data") {
-        const sourceKey = field.sourceKey?.trim() || field.fieldName;
-        value = readLeadValue(leadDataWithDefaults, sourceKey, field.fieldName);
-      } else if (field.sourceType === "static") {
-        value = field.staticValue || "";
-      } else if (field.sourceType === "dynamic") {
-        switch (field.dynamicType) {
-          case "source": value = leadDataWithDefaults.leadSource || apiConfig.source; break;
-          case "medium": value = leadDataWithDefaults.leadMedium || apiConfig.medium; break;
-          case "campaign": value = leadDataWithDefaults.leadCampaign || apiConfig.campaign; break;
-          case "college_id": value = apiConfig.collegeId; break;
-          case "secret_key": value = apiConfig.secretKey; break;
-        }
-      }
-      if (value || field.isRequired) formPayload[field.fieldName] = value;
-    });
-    Object.entries(leadDataWithDefaults).forEach(([key, value]) => {
-      if (value && !["leadSource", "leadMedium", "leadCampaign"].includes(key)) {
-        const apiKey = fieldMappings[key];
-        if (apiKey && !formPayload[apiKey]) formPayload[apiKey] = value;
-      }
-    });
-    if (apiConfig.apiType === "meritto" || apiConfig.apiType === "nopaperforms") {
-      normalizeMerittoNoPaperFormsPayload(formPayload, apiConfig);
-    }
-    if (apiConfig.apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
-      payload = Object.entries(formPayload)
-        .filter(([_, v]) => v !== undefined && v !== null && v !== "")
-        .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
-    } else {
-      payload = formPayload;
-    }
-  } else if (isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
-    const customUiPayload: Record<string, string> = {};
-    Object.entries(leadDataWithDefaults).forEach(([key, value]) => {
-      if (value && !["leadSource", "leadMedium", "leadCampaign"].includes(key)) {
-        customUiPayload[fieldMappings[key] || key] = value;
-      }
-    });
-    customUiPayload[fieldMappings["source"] || "source"] = leadDataWithDefaults.leadSource || apiConfig.source;
-    customUiPayload[fieldMappings["medium"] || "medium"] = leadDataWithDefaults.leadMedium || apiConfig.medium;
-    customUiPayload[fieldMappings["campaign"] || "campaign"] = leadDataWithDefaults.leadCampaign || apiConfig.campaign;
-    if (apiConfig.secretKey) customUiPayload.secret_key = apiConfig.secretKey;
-    Object.entries(staticFields).forEach(([key, value]) => { if (value) customUiPayload[key] = value; });
-    payload = customUiPayload;
-  } else if (apiConfig.apiType === "leadsquared") {
-    const lsPayload: Record<string, string> = {};
-    Object.entries(leadDataWithDefaults).filter(([_, v]) => v).forEach(([key, value]) => {
-      lsPayload[fieldMappings[key] || key] = String(value);
-    });
-    Object.entries(staticFields).forEach(([key, value]) => { if (value) lsPayload[key] = value; });
-    payload = lsPayload;
-  } else if (apiConfig.apiType === "meritto" || apiConfig.apiType === "nopaperforms") {
-    const formData: Record<string, string> = {};
-    Object.entries(leadDataWithDefaults).forEach(([key, value]) => {
-      if (value) formData[fieldMappings[key] || key] = String(value);
-    });
-    formData[fieldMappings["medium"] || "medium"] = leadDataWithDefaults.leadMedium || apiConfig.medium;
-    formData[fieldMappings["campaign"] || "campaign"] = leadDataWithDefaults.leadCampaign || apiConfig.campaign;
-    formData.college_id = apiConfig.collegeId;
-    formData[fieldMappings["source"] || "source"] = leadDataWithDefaults.leadSource || apiConfig.source;
-    formData.secret_key = apiConfig.secretKey;
-    Object.entries(staticFields).forEach(([key, value]) => { formData[key] = value; });
-    normalizeMerittoNoPaperFormsPayload(formData, apiConfig);
-    payload = formData;
-  } else {
-    const genericPayload: Record<string, string> = {};
-    const hasSourceMapping = Object.keys(columnMapping).some((k) => k === "leadSource" || k === "source");
-    const hasMediumMapping = Object.keys(columnMapping).some((k) => k === "leadMedium" || k === "medium");
-    const hasCampaignMapping = Object.keys(columnMapping).some((k) => k === "leadCampaign" || k === "campaign");
-
-    Object.entries(leadDataWithDefaults).forEach(([key, value]) => {
-      if (value && !["leadSource", "leadMedium", "leadCampaign"].includes(key)) {
-        genericPayload[fieldMappings[key] || key] = String(value);
-      }
-    });
-    if (hasSourceMapping) {
-      const v = leadDataWithDefaults.leadSource || apiConfig.source;
-      if (v) genericPayload[fieldMappings["leadSource"] || fieldMappings["source"] || "source"] = v;
-    }
-    if (hasMediumMapping) {
-      const v = leadDataWithDefaults.leadMedium || apiConfig.medium;
-      if (v) genericPayload[fieldMappings["leadMedium"] || fieldMappings["medium"] || "medium"] = v;
-    }
-    if (hasCampaignMapping) {
-      const v = leadDataWithDefaults.leadCampaign || apiConfig.campaign;
-      if (v) genericPayload[fieldMappings["leadCampaign"] || fieldMappings["campaign"] || "campaign"] = v;
-    }
-    if (apiConfig.collegeId) genericPayload.college_id = apiConfig.collegeId;
-    if (apiConfig.secretKey) genericPayload.secret_key = apiConfig.secretKey;
-    Object.entries(staticFields).forEach(([key, value]) => { if (value) genericPayload[key] = value; });
-    payload = genericPayload;
-  }
-
-  if (apiConfig.apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(apiConfig.apiUrl) && !Array.isArray(payload)) {
-    const flat = payload as Record<string, string>;
-    payload = Object.entries(flat)
-      .filter(([_, v]) => v !== undefined && v !== null && v !== "")
-      .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
-  } else {
-    payload = normalizeCustomUiPublisherPayload(payload, apiConfig.apiUrl);
-  }
-
-  return { payload, headers };
-}
-
 // Categorize API response into Success/Duplicate/Fail
 function categorizeResponse(httpStatus: number, responseBody: string, isHttpOk: boolean): string {
   const rs = responseBody.toLowerCase();
@@ -504,8 +177,226 @@ async function processOneLead(
       return false;
     }
 
-    const built = buildPayload(lead, apiConfig);
-    const { payload, headers } = built;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const customHeaders = normalizeStringRecord(apiConfig.customHeaders);
+    const columnMapping = normalizeStringRecord(apiConfig.columnMapping);
+    const customColumnMapping = normalizeStringRecord(apiConfig.customColumnMapping);
+
+    if (apiConfig.authType === "bearer" && apiConfig.authHeaderValue) {
+      headers["Authorization"] = `Bearer ${apiConfig.authHeaderValue}`;
+    } else if (apiConfig.authType === "custom_header" && apiConfig.authHeaderKey && apiConfig.authHeaderValue) {
+      headers[apiConfig.authHeaderKey] = apiConfig.authHeaderValue;
+    }
+    if (customHeaders) {
+      Object.entries(customHeaders).forEach(([key, value]) => {
+        if (key && value) headers[key] = String(value);
+      });
+    }
+
+    const fieldMappings: Record<string, string> = {};
+    const staticFields: Record<string, string> = {};
+    const fixedDefaults: Record<string, string> = {};
+
+    Object.entries(columnMapping).forEach(([key, value]) => {
+      if (key.startsWith("__static_")) {
+        staticFields[key.replace("__static_", "")] = String(value);
+      } else if (key.startsWith("__fixed_")) {
+        fixedDefaults[key.replace("__fixed_", "")] = String(value);
+      } else if (!key.startsWith("__field_")) {
+        fieldMappings[key] = String(value);
+      }
+    });
+
+    Object.entries(customColumnMapping).forEach(([key, value]) => {
+      if (value) fieldMappings[key] = String(value);
+    });
+
+    // Build lead data from the leads table row
+    const leadData: Record<string, string> = {};
+    const fieldMap: Record<string, string> = {
+      name: "name", email: "email", mobile: "mobile",
+      address: "address", state: "state", city: "city",
+      course: "course", specialization: "specialization",
+      lead_source: "leadSource", lead_medium: "leadMedium", lead_campaign: "leadCampaign",
+    };
+
+    Object.entries(fieldMap).forEach(([dbCol, leadKey]) => {
+      if (lead[dbCol]) leadData[leadKey] = lead[dbCol];
+    });
+
+    // Add extra_data fields
+    if (lead.extra_data && typeof lead.extra_data === "object") {
+      Object.entries(lead.extra_data).forEach(([key, value]) => {
+        if (value) leadData[key] = String(value);
+      });
+    }
+
+    // Apply fixed defaults
+    Object.entries(fixedDefaults).forEach(([key, defaultValue]) => {
+      if (!leadData[key] || !leadData[key].trim()) leadData[key] = defaultValue;
+    });
+
+    // Apply university defaults
+    if (!leadData.leadSource?.trim()) leadData.leadSource = apiConfig.source || "";
+    if (!leadData.leadMedium?.trim()) leadData.leadMedium = apiConfig.medium || "";
+    if (!leadData.leadCampaign?.trim()) leadData.leadCampaign = apiConfig.campaign || "";
+
+    // Build payload based on API type
+    let payload: unknown;
+
+    if (apiConfig.apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
+      const lsPayload: Record<string, string> = {};
+      Object.entries(leadData).filter(([_, v]) => v).forEach(([key, value]) => {
+        lsPayload[fieldMappings[key] || key] = value;
+      });
+      Object.entries(staticFields).forEach(([key, value]) => { if (value) lsPayload[key] = value; });
+      payload = Object.entries(lsPayload)
+        .filter(([_, v]) => v !== undefined && v !== null && v !== "")
+        .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
+    } else if (isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
+      const customUiPayload: Record<string, string> = {};
+      Object.entries(leadData).forEach(([key, value]) => {
+        if (value && !["leadSource", "leadMedium", "leadCampaign"].includes(key)) {
+          customUiPayload[fieldMappings[key] || key] = value;
+        }
+      });
+      customUiPayload[fieldMappings["source"] || "source"] = leadData.leadSource || apiConfig.source;
+      customUiPayload[fieldMappings["medium"] || "medium"] = leadData.leadMedium || apiConfig.medium;
+      customUiPayload[fieldMappings["campaign"] || "campaign"] = leadData.leadCampaign || apiConfig.campaign;
+      if (apiConfig.secretKey) customUiPayload.secret_key = apiConfig.secretKey;
+      Object.entries(staticFields).forEach(([key, value]) => { if (value) customUiPayload[key] = value; });
+      payload = customUiPayload;
+    } else if (apiConfig.apiType === "upgrad") {
+      const src = leadData.leadSource || apiConfig.source || "";
+      const med = leadData.leadMedium || apiConfig.medium || "";
+      const camp = leadData.leadCampaign || apiConfig.campaign || "";
+      if (src) headers["utm_source"] = src;
+      if (med) headers["utm_medium"] = med;
+      if (camp) headers["utm_campaign"] = camp;
+
+      const sk = String(apiConfig.secretKey || "").trim();
+      if (sk) {
+        if (sk.toLowerCase().startsWith("basic ")) headers["Authorization"] = sk;
+        else if (sk.includes(":")) headers["Authorization"] = `Basic ${btoa(sk)}`;
+        else headers["Authorization"] = `Basic ${sk}`;
+      }
+
+      const upgradSrcMap: Record<string, string> = {};
+      const upgradMeta: Record<string, string> = {};
+      Object.entries(columnMapping).forEach(([k, v]) => {
+        if (k.startsWith("__upgrad_src_") && v) upgradSrcMap[k.replace("__upgrad_src_", "")] = String(v);
+        else if (k.startsWith("__upgrad_meta_") && v) upgradMeta[k.replace("__upgrad_meta_", "")] = String(v);
+      });
+
+      const readField = (upgradField: string, fallbackCsv: string): string => {
+        const aliasMap: Record<string, string[]> = {
+          mobile: ["phone.number", "mobile"],
+          course: ["course", "programOfInterest"],
+          firstname: ["firstname", "name"],
+          lastname: ["lastname"],
+        };
+        const csvKey = upgradSrcMap[upgradField] || fallbackCsv;
+        const candidates = [csvKey, upgradField, ...(aliasMap[upgradField] || []), fallbackCsv];
+        for (const candidate of candidates) {
+          const value = leadData[candidate];
+          if (value) return value;
+        }
+        return "";
+      };
+      const fullName = (leadData.name || "").trim();
+      const nameParts = fullName.split(/\s+/).filter(Boolean);
+      const firstname = (readField("firstname", "firstname") || nameParts.shift() || "Lead").trim();
+      const lastname = (readField("lastname", "lastname") || nameParts.join(" ") || firstname).trim();
+      const rawMobileInput = (readField("mobile", "phone.number") || "").trim();
+      let countryCode = String(leadData["phone.code"] || leadData["phone.countryCode"] || "+91").trim() || "+91";
+      let number = rawMobileInput.replace(/\D/g, "");
+      const plusMatch = rawMobileInput.match(/^\+(\d{1,3})/);
+      if (plusMatch) {
+        countryCode = `+${plusMatch[1]}`;
+        number = number.slice(plusMatch[1].length);
+      } else if (number.length === 12 && number.startsWith("91")) number = number.slice(2);
+      else if (number.length === 11 && number.startsWith("0")) number = number.slice(1);
+      const upPayload: Record<string, unknown> = {
+        firstname,
+        lastname,
+        email: readField("email", "email"),
+        phone: { number, code: countryCode },
+        course: readField("course", "course"),
+        sendWelcomeMail: false,
+        city: readField("city", "city"),
+        state: readField("state", "state"),
+        country: leadData.country || upgradMeta.country || "India",
+        isDetectLocation: false,
+        affiliateSource: leadData.affiliateSource || upgradMeta.affiliateSource || "aff_id=1&sub_aff_id=12",
+        leadSource: {
+          platform: leadData["leadSource.platform"] || "",
+          platformSection: leadData["leadSource.platformSection"] || "",
+        },
+        extraFields: {
+          chatLink: leadData["extraFields.chatLink"] || upgradMeta.chatLink || "haptik.com/1234567",
+        },
+        emailTemplateSuffix: leadData.emailTemplateSuffix || upgradMeta.emailTemplateSuffix || "in",
+      };
+
+      Object.entries(staticFields).forEach(([k, v]) => {
+        if (!v) return;
+        if (k === "extraFields.LSQID") return;
+        if (k.includes(".")) {
+          const segments = k.split(".");
+          let cursor = upPayload as Record<string, unknown>;
+          for (let i = 0; i < segments.length - 1; i++) {
+            const seg = segments[i];
+            if (typeof cursor[seg] !== "object" || cursor[seg] === null) cursor[seg] = {};
+            cursor = cursor[seg] as Record<string, unknown>;
+          }
+          cursor[segments[segments.length - 1]] = v;
+        } else {
+          upPayload[k] = v;
+        }
+      });
+      payload = upPayload;
+    } else if (apiConfig.apiType === "meritto" || apiConfig.apiType === "nopaperforms") {
+      const formData: Record<string, string> = {};
+      Object.entries(leadData).forEach(([key, value]) => {
+        if (value) formData[fieldMappings[key] || key] = value;
+      });
+      formData[fieldMappings["medium"] || "medium"] = leadData.leadMedium || apiConfig.medium;
+      formData[fieldMappings["campaign"] || "campaign"] = leadData.leadCampaign || apiConfig.campaign;
+      formData.college_id = apiConfig.collegeId;
+      formData[fieldMappings["source"] || "source"] = leadData.leadSource || apiConfig.source;
+      formData.secret_key = apiConfig.secretKey;
+      Object.entries(staticFields).forEach(([key, value]) => { formData[key] = value; });
+      normalizeMerittoNoPaperFormsPayload(formData, apiConfig);
+      payload = formData;
+    } else {
+      const genericPayload: Record<string, string> = {};
+      Object.entries(leadData).forEach(([key, value]) => {
+        if (value && !["leadSource", "leadMedium", "leadCampaign"].includes(key)) {
+          genericPayload[fieldMappings[key] || key] = value;
+        }
+      });
+      const hasSourceMapping = Object.keys(columnMapping).some((k) => k === "leadSource" || k === "source");
+      const hasMediumMapping = Object.keys(columnMapping).some((k) => k === "leadMedium" || k === "medium");
+      const hasCampaignMapping = Object.keys(columnMapping).some((k) => k === "leadCampaign" || k === "campaign");
+      if (hasSourceMapping) {
+        const v = leadData.leadSource || apiConfig.source || "";
+        if (v) genericPayload[fieldMappings["leadSource"] || fieldMappings["source"] || "source"] = v;
+      }
+      if (hasMediumMapping) {
+        const v = leadData.leadMedium || apiConfig.medium || "";
+        if (v) genericPayload[fieldMappings["leadMedium"] || fieldMappings["medium"] || "medium"] = v;
+      }
+      if (hasCampaignMapping) {
+        const v = leadData.leadCampaign || apiConfig.campaign || "";
+        if (v) genericPayload[fieldMappings["leadCampaign"] || fieldMappings["campaign"] || "campaign"] = v;
+      }
+      if (apiConfig.collegeId) genericPayload.college_id = apiConfig.collegeId;
+      if (apiConfig.secretKey) genericPayload.secret_key = apiConfig.secretKey;
+      Object.entries(staticFields).forEach(([key, value]) => { if (value) genericPayload[key] = value; });
+      payload = genericPayload;
+    }
+
+    payload = normalizeCustomUiPublisherPayload(payload, apiConfig.apiUrl);
     const finalPayload = apiConfig.payloadWrapper === "array" && !Array.isArray(payload) ? [payload] : payload;
 
     const controller = new AbortController();
