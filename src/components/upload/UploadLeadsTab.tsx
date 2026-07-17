@@ -2959,6 +2959,9 @@ export function UploadLeadsTab({
                   { value: "districtName", label: "districtName" },
                   { value: "emailId", label: "EmailId" },
                   { value: "access_key", label: "access_key" },
+                  { value: "Campus", label: "Campus" },
+                  { value: "specialization", label: "specialization" },
+                  { value: "course", label: "course" }
                 ];
 
                 // Payload editors and the legacy standard list can contain the
