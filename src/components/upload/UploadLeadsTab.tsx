@@ -1298,18 +1298,8 @@ export function UploadLeadsTab({
 
       // ✅ FIX 2: Always show mapping dialog - pre-fill with saved mapping if available
       if (savedMapping && headers.every((h) => h in savedMapping)) {
-        const repairedMapping = normalizeCsvMapping(savedMapping);
-        const claimedTargets = new Set<string>();
-        headers.forEach((header) => {
-          const payloadTarget = getPayloadTargetForHeader(header, selectedUniversity.column_mapping || {});
-          if (payloadTarget && !claimedTargets.has(payloadTarget)) {
-            repairedMapping[header] = payloadTarget;
-            claimedTargets.add(payloadTarget);
-          } else if (repairedMapping[header]) {
-            claimedTargets.add(repairedMapping[header]);
-          }
-        });
-        setLocalColumnMapping(repairedMapping);
+        setLocalColumnMapping(savedMapping);
+        setTempColumnMapping(savedMapping);
         (window as any).__pendingCsvData = data;
         setShowColumnMapping(true);
         return;
