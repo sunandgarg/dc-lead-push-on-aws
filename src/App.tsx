@@ -8,6 +8,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { appCache } from "@/hooks/useAppCache";
 import { hasSupabaseConfig, supabaseConfigError } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import Index from "./pages/Index";
 
 const CHUNK_RELOAD_KEY = "app:chunk-reload-at";
 
@@ -60,7 +61,6 @@ function lazyWithRetry<T extends { default: React.ComponentType<any> }>(
   });
 }
 
-const Index = lazyWithRetry(() => import("./pages/Index"));
 const Auth = lazyWithRetry(() => import("./pages/Auth"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const TelecallerApp = lazyWithRetry(() => import("./pages/TelecallerApp"));
