@@ -894,6 +894,34 @@ export function UploadLeadsTab({
       .replace(/[\s_]+/g, "-")
       .replace(/[^a-z0-9-]/g, "");
 
+  const isLeadSquaredCustomUiPublisher = (apiUrl?: string) =>
+    (apiUrl || "").toLowerCase().includes("customui.leadsquared.com");
+
+  const addFirstAvailablePayloadAlias = (payload: Record<string, string>, aliases: string[]) => {
+    const existingValue = aliases
+      .map((key) => payload[key])
+      .find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+
+    if (!existingValue) return;
+
+    aliases.forEach((key) => {
+      if (!payload[key] || !String(payload[key]).trim()) {
+        payload[key] = String(existingValue);
+      }
+    });
+  };
+
+  const normalizeCustomUiPublisherPayload = (payload: unknown) => {
+    if (!isLeadSquaredCustomUiPublisher(selectedUniversity?.api_url) || Array.isArray(payload) || !payload || typeof payload !== "object") {
+      return payload;
+    }
+
+    const normalized = { ...(payload as Record<string, string>) };
+    addFirstAvailablePayloadAlias(normalized, ["Course", "course"]);
+    addFirstAvailablePayloadAlias(normalized, ["Specialization", "Specialisation", "specialization", "specialisation"]);
+    return normalized;
+  };
+
   const buildMappedPayloadPreview = (lead: Lead): string => {
     if (!selectedUniversity) return "";
 
@@ -917,7 +945,7 @@ export function UploadLeadsTab({
         Attribute: customColumnApiMapping[key] || columnMapping[key] || key,
         Value: value,
       }));
-      return JSON.stringify(payload, null, 2);
+      return JSON.stringify(normalizeCustomUiPublisherPayload(payload), null, 2);
     }
 
     if (apiType === "upgrad") {
@@ -1070,7 +1098,8 @@ export function UploadLeadsTab({
       });
     }
 
-    const finalPayload = selectedUniversity.payload_wrapper === "array" ? [payload] : payload;
+    const normalizedPayload = normalizeCustomUiPublisherPayload(payload);
+    const finalPayload = selectedUniversity.payload_wrapper === "array" ? [normalizedPayload] : normalizedPayload;
     return JSON.stringify(finalPayload, null, 2);
   };
 

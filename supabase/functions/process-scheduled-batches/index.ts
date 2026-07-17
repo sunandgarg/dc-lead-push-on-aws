@@ -46,6 +46,35 @@ function resolvePartnerTimeoutMs(apiConfig: Record<string, any>): number {
   return 30000;
 }
 
+function isLeadSquaredCustomUiPublisher(apiUrl?: string): boolean {
+  return String(apiUrl || "").toLowerCase().includes("customui.leadsquared.com");
+}
+
+function addFirstAvailableAlias(payload: Record<string, string>, aliases: string[]) {
+  const existingValue = aliases
+    .map((key) => payload[key])
+    .find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+
+  if (!existingValue) return;
+
+  aliases.forEach((key) => {
+    if (!payload[key] || !String(payload[key]).trim()) {
+      payload[key] = String(existingValue);
+    }
+  });
+}
+
+function normalizeCustomUiPublisherPayload(payload: unknown, apiUrl?: string): unknown {
+  if (!isLeadSquaredCustomUiPublisher(apiUrl) || Array.isArray(payload) || !payload || typeof payload !== "object") {
+    return payload;
+  }
+
+  const normalized = { ...(payload as Record<string, string>) };
+  addFirstAvailableAlias(normalized, ["Course", "course"]);
+  addFirstAvailableAlias(normalized, ["Specialization", "Specialisation", "specialization", "specialisation"]);
+  return normalized;
+}
+
 // Categorize API response into Success/Duplicate/Fail
 function categorizeResponse(httpStatus: number, responseBody: string, isHttpOk: boolean): string {
   const rs = responseBody.toLowerCase();
@@ -314,6 +343,7 @@ async function processOneLead(
       payload = genericPayload;
     }
 
+    payload = normalizeCustomUiPublisherPayload(payload, apiConfig.apiUrl);
     const finalPayload = apiConfig.payloadWrapper === "array" && !Array.isArray(payload) ? [payload] : payload;
 
     const controller = new AbortController();

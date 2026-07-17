@@ -57,6 +57,35 @@ const PARTNER_TIMEOUT_MS = 30000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const STOPPED_STATUSES = new Set(["Cancelled", "Paused", "Stopped"]);
 
+function isLeadSquaredCustomUiPublisher(apiUrl?: string): boolean {
+  return String(apiUrl || "").toLowerCase().includes("customui.leadsquared.com");
+}
+
+function addFirstAvailableAlias(payload: Record<string, string>, aliases: string[]) {
+  const existingValue = aliases
+    .map((key) => payload[key])
+    .find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+
+  if (!existingValue) return;
+
+  aliases.forEach((key) => {
+    if (!payload[key] || !String(payload[key]).trim()) {
+      payload[key] = String(existingValue);
+    }
+  });
+}
+
+function normalizeCustomUiPublisherPayload(payload: unknown, apiUrl?: string): unknown {
+  if (!isLeadSquaredCustomUiPublisher(apiUrl) || Array.isArray(payload) || !payload || typeof payload !== "object") {
+    return payload;
+  }
+
+  const normalized = { ...(payload as Record<string, string>) };
+  addFirstAvailableAlias(normalized, ["Course", "course"]);
+  addFirstAvailableAlias(normalized, ["Specialization", "Specialisation", "specialization", "specialisation"]);
+  return normalized;
+}
+
 async function getBlockedBatchIds(batchIds: string[]): Promise<Set<string>> {
   if (batchIds.length === 0) return new Set();
 
@@ -626,6 +655,8 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     payload = Object.entries(flat)
       .filter(([_, v]) => v !== undefined && v !== null && v !== "")
       .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
+  } else {
+    payload = normalizeCustomUiPublisherPayload(payload, apiConfig.apiUrl);
   }
 
   return { payload, headers };
