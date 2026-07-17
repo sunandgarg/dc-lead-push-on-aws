@@ -458,9 +458,26 @@ Deno.serve(async (req) => {
     }
 
     if (university.api_type === "leadsquared") {
-      const lsEntries = Object.entries(leadDataForMatching)
+      const lsPayload: Record<string, string> = {};
+      Object.entries(leadDataForMatching)
         .filter(([_, v]) => v)
-        .map(([key, value]) => ({ Attribute: columnMapping[key] || key, Value: value }));
+        .forEach(([key, value]) => {
+          lsPayload[(columnMapping[key] as string) || key] = value;
+        });
+
+      const sourceValue = lsPayload.leadSource || lsPayload.source || "";
+      const mediumValue = lsPayload.leadMedium || lsPayload.medium || "";
+      const campaignValue = lsPayload.leadCampaign || lsPayload.campaign || "";
+
+      delete lsPayload.source;
+      delete lsPayload.medium;
+      delete lsPayload.campaign;
+
+      if (sourceValue) lsPayload.leadSource = sourceValue;
+      if (mediumValue) lsPayload.leadMedium = mediumValue;
+      if (campaignValue) lsPayload.leadCampaign = campaignValue;
+
+      const lsEntries = Object.entries(lsPayload).map(([key, value]) => ({ Attribute: key, Value: value }));
       Object.entries(staticFields).forEach(([key, value]) => {
         if (value) lsEntries.push({ Attribute: key, Value: value });
       });

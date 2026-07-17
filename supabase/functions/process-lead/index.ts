@@ -152,6 +152,20 @@ function normalizeCustomUiPublisherPayload(payload: unknown, apiUrl?: string): u
   return normalized;
 }
 
+function normalizeLeadSquaredTrackingFields(payload: Record<string, string>) {
+  const sourceValue = payload.leadSource || payload.source || "";
+  const mediumValue = payload.leadMedium || payload.medium || "";
+  const campaignValue = payload.leadCampaign || payload.campaign || "";
+
+  delete payload.source;
+  delete payload.medium;
+  delete payload.campaign;
+
+  if (sourceValue) payload.leadSource = sourceValue;
+  if (mediumValue) payload.leadMedium = mediumValue;
+  if (campaignValue) payload.leadCampaign = campaignValue;
+}
+
 async function getBlockedBatchIds(batchIds: string[]): Promise<Set<string>> {
   if (batchIds.length === 0) return new Set();
 
@@ -671,6 +685,7 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
       normalizeMerittoNoPaperFormsPayload(formPayload, apiConfig);
     }
     if (apiConfig.apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
+      normalizeLeadSquaredTrackingFields(formPayload);
       payload = Object.entries(formPayload)
         .filter(([_, v]) => v !== undefined && v !== null && v !== "")
         .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
@@ -696,6 +711,7 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
       lsPayload[fieldMappings[key] || key] = value;
     });
     Object.entries(staticFields).forEach(([key, value]) => { if (value) lsPayload[key] = value; });
+    normalizeLeadSquaredTrackingFields(lsPayload);
     payload = lsPayload;
   } else if (apiConfig.apiType === "meritto" || apiConfig.apiType === "nopaperforms") {
     const formData: Record<string, string> = {};

@@ -1013,6 +1013,20 @@ export function UploadLeadsTab({
     return normalized;
   };
 
+  const normalizeLeadSquaredTrackingFields = (payload: Record<string, string>) => {
+    const sourceValue = payload.leadSource || payload.source || "";
+    const mediumValue = payload.leadMedium || payload.medium || "";
+    const campaignValue = payload.leadCampaign || payload.campaign || "";
+
+    delete payload.source;
+    delete payload.medium;
+    delete payload.campaign;
+
+    if (sourceValue) payload.leadSource = sourceValue;
+    if (mediumValue) payload.leadMedium = mediumValue;
+    if (campaignValue) payload.leadCampaign = campaignValue;
+  };
+
   const buildMappedPayloadPreview = (lead: Lead): string => {
     if (!selectedUniversity) return "";
 
@@ -1079,6 +1093,7 @@ export function UploadLeadsTab({
       }
 
       if (apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(selectedUniversity.api_url)) {
+        normalizeLeadSquaredTrackingFields(payload);
         return JSON.stringify(
           Object.entries(payload)
             .filter(([_, value]) => value !== undefined && value !== null && String(value).trim() !== "")
@@ -1094,6 +1109,17 @@ export function UploadLeadsTab({
     }
 
     if (apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(selectedUniversity.api_url)) {
+      const trackingPayload: Record<string, string> = {};
+      entries.forEach(([key, value]) => {
+        const mappedKey = customColumnApiMapping[key] || columnMapping[key] || key;
+        trackingPayload[mappedKey] = value;
+      });
+      Object.entries(columnMapping).forEach(([key, value]) => {
+        if (key.startsWith("__static_") && value) {
+          trackingPayload[key.replace("__static_", "")] = value;
+        }
+      });
+      normalizeLeadSquaredTrackingFields(trackingPayload);
       const payload = entries.map(([key, value]) => ({
         Attribute: customColumnApiMapping[key] || columnMapping[key] || key,
         Value: value,
@@ -1103,7 +1129,13 @@ export function UploadLeadsTab({
           payload.push({ Attribute: key.replace("__static_", ""), Value: value });
         }
       });
-      return JSON.stringify(normalizeCustomUiPublisherPayload(payload), null, 2);
+      return JSON.stringify(
+        Object.entries(trackingPayload)
+          .filter(([_, value]) => value !== undefined && value !== null && String(value).trim() !== "")
+          .map(([key, value]) => ({ Attribute: key, Value: String(value) })),
+        null,
+        2,
+      );
     }
 
     if (isLeadSquaredCustomUiPublisher(selectedUniversity.api_url)) {
