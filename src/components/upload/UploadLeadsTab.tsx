@@ -386,6 +386,7 @@ const LOCAL_STORAGE_PURGE_KEYS = new Set([
   "dekhocampus_upload_v3",
   "dekhocampus_upload_processing_v1",
   "dekhocampus_app_cache_v3",
+  "dekhocampus_app_cache_v4",
   "lpAdminDashboardCache.v2",
 ]);
 
@@ -396,6 +397,7 @@ const SESSION_STORAGE_PURGE_KEYS = new Set([
   "app:has_unsaved_draft",
   "dekhocampus_upload_session_v1",
   "dekhocampus_session_state_v2",
+  "dekhocampus_session_state_v3",
 ]);
 const SESSION_STORAGE_PURGE_PREFIXES = ["app:page:", "app:sub_slugs", "app:draft_indicator", "dekhocampus_"];
 

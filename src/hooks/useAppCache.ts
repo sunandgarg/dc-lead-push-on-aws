@@ -23,9 +23,9 @@ export interface AppCacheState {
   urlShortenerTab: string | null;
 }
 
-const CACHE_KEY = 'dekhocampus_app_cache_v3';
-const SESSION_KEY = 'dekhocampus_session_state_v2';
-const CACHE_VERSION = '3.0';
+const CACHE_KEY = 'dekhocampus_app_cache_v4';
+const SESSION_KEY = 'dekhocampus_session_state_v3';
+const CACHE_VERSION = '4.0';
 
 // Default state
 const defaultState: AppCacheState = {
