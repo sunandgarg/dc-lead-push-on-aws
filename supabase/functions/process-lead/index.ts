@@ -115,11 +115,31 @@ function addAcademicFieldAliases(payload: Record<string, string>) {
   addFirstAvailableAlias(payload, FIELD_ALIASES.specialization);
 }
 
+function canonicalizeField(payload: Record<string, string>, canonicalKey: string, aliases: string[]) {
+  const existingValue = [canonicalKey, ...aliases]
+    .map((key) => payload[key])
+    .find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+
+  if (existingValue !== undefined && existingValue !== null) {
+    payload[canonicalKey] = String(existingValue);
+  }
+
+  aliases.forEach((key) => {
+    if (key !== canonicalKey) delete payload[key];
+  });
+}
+
 function normalizeMerittoNoPaperFormsPayload(payload: Record<string, string>, apiConfig: LeadPayload["apiConfig"]) {
   if (apiConfig.collegeId && !payload.college_id) payload.college_id = apiConfig.collegeId;
-  addFirstAvailableAlias(payload, FIELD_ALIASES.campus);
-  addFirstAvailableAlias(payload, FIELD_ALIASES.course);
-  addFirstAvailableAlias(payload, FIELD_ALIASES.specialization);
+  canonicalizeField(payload, "campus", ["Campus"]);
+  canonicalizeField(payload, "course", ["Course"]);
+  canonicalizeField(payload, "specialization", [
+    "Specialization",
+    "Specialisation",
+    "specialisation",
+    "specializationName",
+    "specialization_name",
+  ]);
 }
 
 function normalizeCustomUiPublisherPayload(payload: unknown, apiUrl?: string): unknown {

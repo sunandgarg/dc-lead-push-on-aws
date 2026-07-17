@@ -917,6 +917,32 @@ export function UploadLeadsTab({
     addFirstAvailablePayloadAlias(payload, ["specialization", "Specialization", "Specialisation", "specialisation"]);
   };
 
+  const canonicalizePayloadField = (payload: Record<string, string>, canonicalKey: string, aliases: string[]) => {
+    const existingValue = [canonicalKey, ...aliases]
+      .map((key) => payload[key])
+      .find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+
+    if (existingValue !== undefined && existingValue !== null) {
+      payload[canonicalKey] = String(existingValue);
+    }
+
+    aliases.forEach((key) => {
+      if (key !== canonicalKey) delete payload[key];
+    });
+  };
+
+  const normalizeMerittoNoPaperFormsPayload = (payload: Record<string, string>) => {
+    canonicalizePayloadField(payload, "campus", ["Campus"]);
+    canonicalizePayloadField(payload, "course", ["Course"]);
+    canonicalizePayloadField(payload, "specialization", [
+      "Specialization",
+      "Specialisation",
+      "specialisation",
+      "specializationName",
+      "specialization_name",
+    ]);
+  };
+
   const normalizeCustomUiPublisherPayload = (payload: unknown) => {
     if (!isLeadSquaredCustomUiPublisher(selectedUniversity?.api_url) || Array.isArray(payload) || !payload || typeof payload !== "object") {
       return payload;
@@ -1086,7 +1112,7 @@ export function UploadLeadsTab({
       if (selectedUniversity.college_id && !payload.college_id) {
         payload.college_id = selectedUniversity.college_id;
       }
-      addAcademicPayloadAliases(payload);
+      normalizeMerittoNoPaperFormsPayload(payload);
 
       return JSON.stringify(payload, null, 2);
     }
