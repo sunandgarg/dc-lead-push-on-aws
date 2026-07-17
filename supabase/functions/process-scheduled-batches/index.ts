@@ -67,7 +67,7 @@ function addFirstAvailableAlias(payload: Record<string, string>, aliases: string
 const FIELD_ALIASES: Record<string, string[]> = {
   campus: ["campus", "Campus"],
   course: ["course", "Course"],
-  program: ["program", "Program", "field_program", "programName", "program_name", "course", "Course"],
+  program: ["program", "Program", "field_program", "programName", "program_name"],
   specialization: ["specialization", "Specialization", "Specialisation", "specialisation", "specializationName", "specialization_name"],
 };
 
