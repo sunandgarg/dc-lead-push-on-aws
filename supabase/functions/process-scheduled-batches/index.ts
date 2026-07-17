@@ -258,7 +258,7 @@ async function processOneLead(
     // Build payload based on API type
     let payload: unknown;
 
-    if (apiConfig.apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
+    if (apiConfig.apiType === "leadsquared") {
       const lsPayload: Record<string, string> = {};
       Object.entries(leadData).filter(([_, v]) => v).forEach(([key, value]) => {
         lsPayload[fieldMappings[key] || key] = value;
@@ -268,19 +268,6 @@ async function processOneLead(
       payload = Object.entries(lsPayload)
         .filter(([_, v]) => v !== undefined && v !== null && v !== "")
         .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
-    } else if (isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
-      const customUiPayload: Record<string, string> = {};
-      Object.entries(leadData).forEach(([key, value]) => {
-        if (value && !["leadSource", "leadMedium", "leadCampaign"].includes(key)) {
-          customUiPayload[fieldMappings[key] || key] = value;
-        }
-      });
-      customUiPayload[fieldMappings["source"] || "source"] = leadData.leadSource || apiConfig.source;
-      customUiPayload[fieldMappings["medium"] || "medium"] = leadData.leadMedium || apiConfig.medium;
-      customUiPayload[fieldMappings["campaign"] || "campaign"] = leadData.leadCampaign || apiConfig.campaign;
-      if (apiConfig.secretKey) customUiPayload.secret_key = apiConfig.secretKey;
-      Object.entries(staticFields).forEach(([key, value]) => { if (value) customUiPayload[key] = value; });
-      payload = customUiPayload;
     } else if (apiConfig.apiType === "upgrad") {
       const src = leadData.leadSource || apiConfig.source || "";
       const med = leadData.leadMedium || apiConfig.medium || "";

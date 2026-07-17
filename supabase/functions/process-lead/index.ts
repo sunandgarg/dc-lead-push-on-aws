@@ -690,25 +690,12 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     if (apiConfig.apiType === "meritto" || apiConfig.apiType === "nopaperforms") {
       normalizeMerittoNoPaperFormsPayload(formPayload, apiConfig);
     }
-    if (apiConfig.apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
+    if (apiConfig.apiType === "leadsquared") {
       normalizeLeadSquaredTrackingFields(formPayload);
       payload = buildLeadSquaredAttributePayload(formPayload);
     } else {
       payload = formPayload;
     }
-  } else if (isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
-    const customUiPayload: Record<string, string> = {};
-    Object.entries(leadDataWithDefaults).forEach(([key, value]) => {
-      if (value && !["leadSource", "leadMedium", "leadCampaign"].includes(key)) {
-        customUiPayload[fieldMappings[key] || key] = value;
-      }
-    });
-    customUiPayload[fieldMappings["source"] || "source"] = leadDataWithDefaults.leadSource || apiConfig.source;
-    customUiPayload[fieldMappings["medium"] || "medium"] = leadDataWithDefaults.leadMedium || apiConfig.medium;
-    customUiPayload[fieldMappings["campaign"] || "campaign"] = leadDataWithDefaults.leadCampaign || apiConfig.campaign;
-    if (apiConfig.secretKey) customUiPayload.secret_key = apiConfig.secretKey;
-    Object.entries(staticFields).forEach(([key, value]) => { if (value) customUiPayload[key] = value; });
-    payload = customUiPayload;
   } else if (apiConfig.apiType === "leadsquared") {
     const lsPayload: Record<string, string> = {};
     Object.entries(leadDataWithDefaults).filter(([_, v]) => v).forEach(([key, value]) => {
@@ -759,7 +746,7 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     payload = genericPayload;
   }
 
-  if (apiConfig.apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(apiConfig.apiUrl) && !Array.isArray(payload)) {
+  if (apiConfig.apiType === "leadsquared" && !Array.isArray(payload)) {
     const flat = payload as Record<string, string>;
     payload = buildLeadSquaredAttributePayload(flat);
   } else {
