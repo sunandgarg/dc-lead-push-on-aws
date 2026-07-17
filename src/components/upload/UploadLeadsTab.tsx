@@ -911,15 +911,19 @@ export function UploadLeadsTab({
     });
   };
 
+  const addAcademicPayloadAliases = (payload: Record<string, string>) => {
+    addFirstAvailablePayloadAlias(payload, ["campus", "Campus"]);
+    addFirstAvailablePayloadAlias(payload, ["course", "Course"]);
+    addFirstAvailablePayloadAlias(payload, ["specialization", "Specialization", "Specialisation", "specialisation"]);
+  };
+
   const normalizeCustomUiPublisherPayload = (payload: unknown) => {
     if (!isLeadSquaredCustomUiPublisher(selectedUniversity?.api_url) || Array.isArray(payload) || !payload || typeof payload !== "object") {
       return payload;
     }
 
     const normalized = { ...(payload as Record<string, string>) };
-    addFirstAvailablePayloadAlias(normalized, ["campus", "Campus"]);
-    addFirstAvailablePayloadAlias(normalized, ["course", "Course"]);
-    addFirstAvailablePayloadAlias(normalized, ["specialization", "Specialization", "Specialisation", "specialisation"]);
+    addAcademicPayloadAliases(normalized);
     return normalized;
   };
 
@@ -1079,6 +1083,7 @@ export function UploadLeadsTab({
         }
       });
 
+      addAcademicPayloadAliases(payload);
       return JSON.stringify(payload, null, 2);
     }
 

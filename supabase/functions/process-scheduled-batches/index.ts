@@ -64,15 +64,25 @@ function addFirstAvailableAlias(payload: Record<string, string>, aliases: string
   });
 }
 
+const FIELD_ALIASES: Record<string, string[]> = {
+  campus: ["campus", "Campus"],
+  course: ["course", "Course"],
+  specialization: ["specialization", "Specialization", "Specialisation", "specialisation"],
+};
+
+function addAcademicFieldAliases(payload: Record<string, string>) {
+  addFirstAvailableAlias(payload, FIELD_ALIASES.campus);
+  addFirstAvailableAlias(payload, FIELD_ALIASES.course);
+  addFirstAvailableAlias(payload, FIELD_ALIASES.specialization);
+}
+
 function normalizeCustomUiPublisherPayload(payload: unknown, apiUrl?: string): unknown {
   if (!isLeadSquaredCustomUiPublisher(apiUrl) || Array.isArray(payload) || !payload || typeof payload !== "object") {
     return payload;
   }
 
   const normalized = { ...(payload as Record<string, string>) };
-  addFirstAvailableAlias(normalized, ["campus", "Campus"]);
-  addFirstAvailableAlias(normalized, ["course", "Course"]);
-  addFirstAvailableAlias(normalized, ["specialization", "Specialization", "Specialisation", "specialisation"]);
+  addAcademicFieldAliases(normalized);
   return normalized;
 }
 
@@ -328,6 +338,7 @@ async function processOneLead(
       formData[fieldMappings["source"] || "source"] = leadData.leadSource || apiConfig.source;
       formData.secret_key = apiConfig.secretKey;
       Object.entries(staticFields).forEach(([key, value]) => { formData[key] = value; });
+      addAcademicFieldAliases(formData);
       payload = formData;
     } else {
       const genericPayload: Record<string, string> = {};
