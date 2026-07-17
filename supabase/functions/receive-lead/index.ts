@@ -464,6 +464,9 @@ Deno.serve(async (req) => {
       Object.entries(staticFields).forEach(([key, value]) => {
         if (value) lsEntries.push({ Attribute: key, Value: value });
       });
+      if (university.secret_key && !lsEntries.some((entry) => entry.Attribute === "secret_key")) {
+        lsEntries.push({ Attribute: "secret_key", Value: university.secret_key });
+      }
       apiPayload = lsEntries;
     } else {
       const formData: Record<string, string> = {};

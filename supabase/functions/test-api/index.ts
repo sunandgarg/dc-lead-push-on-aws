@@ -192,12 +192,16 @@ serve(async (req) => {
         emailTemplateSuffix: 'in',
       };
     } else if (apiConfig.apiType === 'leadsquared') {
-      payload = Object.entries(testLead)
+      const lsPayload = Object.entries(testLead)
         .filter(([_, value]) => value)
         .map(([key, value]) => ({
           Attribute: columnMapping[key] || key,
           Value: value,
         }));
+      if (apiConfig.secretKey && !lsPayload.some((entry) => entry.Attribute === 'secret_key')) {
+        lsPayload.push({ Attribute: 'secret_key', Value: apiConfig.secretKey });
+      }
+      payload = lsPayload;
     } else if (apiConfig.apiType === 'meritto' || apiConfig.apiType === 'nopaperforms') {
       const formData: Record<string, string> = {
         secret_key: apiConfig.secretKey,

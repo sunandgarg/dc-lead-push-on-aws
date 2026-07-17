@@ -976,6 +976,14 @@ export function UploadLeadsTab({
         Attribute: customColumnApiMapping[key] || columnMapping[key] || key,
         Value: value,
       }));
+      Object.entries(columnMapping).forEach(([key, value]) => {
+        if (key.startsWith("__static_") && value) {
+          payload.push({ Attribute: key.replace("__static_", ""), Value: value });
+        }
+      });
+      if (selectedUniversity.secret_key && !payload.some((entry) => entry.Attribute === "secret_key")) {
+        payload.push({ Attribute: "secret_key", Value: "[hidden]" });
+      }
       return JSON.stringify(normalizeCustomUiPublisherPayload(payload), null, 2);
     }
 
