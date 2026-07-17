@@ -9,10 +9,34 @@ import { appCache } from "@/hooks/useAppCache";
 import { hasSupabaseConfig, supabaseConfigError } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 
-// Lazy load pages for faster initial load
-// Retry a transient dynamic-import failure in place. Never hard-reload here:
-// Cloudflare can briefly return a stale chunk during a deployment, and calling
-// window.location.reload() turns that short cache mismatch into a reload loop.
+const CHUNK_RELOAD_KEY = "app:chunk-reload-at";
+
+function isDynamicImportError(error: unknown): boolean {
+  const message = String(error instanceof Error ? error.message : error);
+  return (
+    message.includes("Failed to fetch dynamically imported module") ||
+    message.includes("Importing a module script failed") ||
+    message.includes("error loading dynamically imported module")
+  );
+}
+
+function recoverFromChunkError(error: unknown): Promise<never> {
+  const lastReloadAt = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || 0);
+  const now = Date.now();
+
+  if (now - lastReloadAt > 30_000) {
+    console.warn("[App] Missing stale chunk, reloading with cache bust:", error);
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(now));
+    const url = new URL(window.location.href);
+    url.searchParams.set("__app_reload", String(now));
+    window.location.replace(url.toString());
+    return new Promise(() => {});
+  }
+
+  throw error;
+}
+
+// Lazy load pages for faster initial load.
 function lazyWithRetry<T extends { default: React.ComponentType<any> }>(
   factory: () => Promise<T>
 ) {
@@ -20,14 +44,16 @@ function lazyWithRetry<T extends { default: React.ComponentType<any> }>(
     try {
       return await factory();
     } catch (err: any) {
-      const msg = String(err?.message || err);
-      if (
-        msg.includes("Failed to fetch dynamically imported module") ||
-        msg.includes("Importing a module script failed") ||
-        msg.includes("error loading dynamically imported module")
-      ) {
+      if (isDynamicImportError(err)) {
         await new Promise((resolve) => setTimeout(resolve, 500));
-        return await factory();
+        try {
+          return await factory();
+        } catch (retryError) {
+          if (isDynamicImportError(retryError)) {
+            return recoverFromChunkError(retryError);
+          }
+          throw retryError;
+        }
       }
       throw err;
     }
@@ -74,6 +100,9 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
 
   componentDidCatch(error: unknown) {
     console.error("[App] Render error recovered by boundary:", error);
+    if (isDynamicImportError(error)) {
+      recoverFromChunkError(error);
+    }
   }
 
   private resetAppCache = () => {
