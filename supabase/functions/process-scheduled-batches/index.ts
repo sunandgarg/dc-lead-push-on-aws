@@ -67,7 +67,8 @@ function addFirstAvailableAlias(payload: Record<string, string>, aliases: string
 const FIELD_ALIASES: Record<string, string[]> = {
   campus: ["campus", "Campus"],
   course: ["course", "Course"],
-  specialization: ["specialization", "Specialization", "Specialisation", "specialisation"],
+  program: ["program", "Program", "field_program", "programName", "program_name", "course", "Course"],
+  specialization: ["specialization", "Specialization", "Specialisation", "specialisation", "specializationName", "specialization_name"],
 };
 
 function addAcademicFieldAliases(payload: Record<string, string>) {
@@ -338,7 +339,6 @@ async function processOneLead(
       formData[fieldMappings["source"] || "source"] = leadData.leadSource || apiConfig.source;
       formData.secret_key = apiConfig.secretKey;
       Object.entries(staticFields).forEach(([key, value]) => { formData[key] = value; });
-      addAcademicFieldAliases(formData);
       payload = formData;
     } else {
       const genericPayload: Record<string, string> = {};

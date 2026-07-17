@@ -78,12 +78,14 @@ function addFirstAvailableAlias(payload: Record<string, string>, aliases: string
 const FIELD_ALIASES: Record<string, string[]> = {
   campus: ["campus", "Campus"],
   course: ["course", "Course"],
-  specialization: ["specialization", "Specialization", "Specialisation", "specialisation"],
+  program: ["program", "Program", "field_program", "programName", "program_name", "course", "Course"],
+  specialization: ["specialization", "Specialization", "Specialisation", "specialisation", "specializationName", "specialization_name"],
 };
 
 function aliasesForField(field: string): string[] {
   const normalized = String(field || "").trim().toLowerCase();
   if (["specialisation", "specialization"].includes(normalized)) return FIELD_ALIASES.specialization;
+  if (["program", "field_program", "programname", "program_name"].includes(normalized)) return FIELD_ALIASES.program;
   if (normalized === "course") return FIELD_ALIASES.course;
   if (normalized === "campus") return FIELD_ALIASES.campus;
   return [field].filter(Boolean);
@@ -634,8 +636,8 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     });
     Object.entries(leadDataWithDefaults).forEach(([key, value]) => {
       if (value && !["leadSource", "leadMedium", "leadCampaign"].includes(key)) {
-        const apiKey = fieldMappings[key] || key;
-        if (!formPayload[apiKey]) formPayload[apiKey] = value;
+        const apiKey = fieldMappings[key];
+        if (apiKey && !formPayload[apiKey]) formPayload[apiKey] = value;
       }
     });
     payload = formPayload;
@@ -670,7 +672,6 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     formData[fieldMappings["source"] || "source"] = leadDataWithDefaults.leadSource || apiConfig.source;
     formData.secret_key = apiConfig.secretKey;
     Object.entries(staticFields).forEach(([key, value]) => { formData[key] = value; });
-    addAcademicFieldAliases(formData);
     payload = formData;
   } else {
     const genericPayload: Record<string, string> = {};

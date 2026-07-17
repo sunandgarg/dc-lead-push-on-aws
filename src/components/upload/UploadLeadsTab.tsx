@@ -1083,7 +1083,6 @@ export function UploadLeadsTab({
         }
       });
 
-      addAcademicPayloadAliases(payload);
       return JSON.stringify(payload, null, 2);
     }
 
