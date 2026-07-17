@@ -1549,13 +1549,13 @@ export function UploadLeadsTab({
             // Mirror payload-field aliases back to canonical lead fields so
             // validation (which reads lead.email/mobile/name) doesn't flag them as Missing.
             const tf = targetField.toLowerCase();
-            if (!lead.email && ["emailid", "email_id", "emailaddress", "email_address"].includes(tf)) {
+            if (!lead.email && ["emailid", "email_id", "emailaddress", "email_address", "email", "emailaddress1"].includes(tf)) {
               lead.email = value;
             }
-            if (!lead.mobile && ["phone", "phonenumber", "phone_number", "mobilenumber", "mobile_number", "contact", "contactnumber"].includes(tf)) {
+            if (!lead.mobile && ["phone", "phonenumber", "phone_number", "mobilenumber", "mobile_number", "contact", "contactnumber", "mobile", "mobile_no"].includes(tf)) {
               lead.mobile = value;
             }
-            if (!lead.name && ["fullname", "full_name", "studentname", "student_name"].includes(tf)) {
+            if (!lead.name && ["fullname", "full_name", "studentname", "student_name", "firstname", "name", "studentname1"].includes(tf)) {
               lead.name = value;
             }
           }
