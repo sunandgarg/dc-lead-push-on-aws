@@ -670,7 +670,13 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     if (apiConfig.apiType === "meritto" || apiConfig.apiType === "nopaperforms") {
       normalizeMerittoNoPaperFormsPayload(formPayload, apiConfig);
     }
-    payload = formPayload;
+    if (apiConfig.apiType === "leadsquared" && !isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
+      payload = Object.entries(formPayload)
+        .filter(([_, v]) => v !== undefined && v !== null && v !== "")
+        .map(([key, value]) => ({ Attribute: key, Value: String(value) }));
+    } else {
+      payload = formPayload;
+    }
   } else if (isLeadSquaredCustomUiPublisher(apiConfig.apiUrl)) {
     const customUiPayload: Record<string, string> = {};
     Object.entries(leadDataWithDefaults).forEach(([key, value]) => {
