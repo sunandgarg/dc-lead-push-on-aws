@@ -692,6 +692,13 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     payload = upPayload;
   } else if (payloadFields.length > 0) {
     const formPayload: Record<string, string> = {};
+    const manualAcademicFieldKeys = new Set(["campus", "course", "specialization", "specialisation", "program"]);
+    const payloadFieldKeys = new Set(
+      payloadFields
+        .flatMap((field) => [field.fieldName, field.sourceKey, field.displayName])
+        .filter(Boolean)
+        .map((field) => String(field).trim().toLowerCase()),
+    );
     payloadFields.forEach((field) => {
       if (!field.fieldName) return;
       let value = "";
@@ -716,7 +723,12 @@ function buildPayload(leadData: Record<string, string>, apiConfig: LeadPayload["
     });
     Object.entries(leadDataWithDefaults).forEach(([key, value]) => {
       if (value && !["leadSource", "leadMedium", "leadCampaign"].includes(key)) {
-        const apiKey = fieldMappings[key];
+        // Preserve a manual CSV target even when it is not present as a key in
+        // the university's saved mapping (for example, Campus vs campus).
+        const normalizedKey = key.trim().toLowerCase();
+        const apiKey =
+          fieldMappings[key] ||
+          (payloadFieldKeys.has(normalizedKey) || manualAcademicFieldKeys.has(normalizedKey) ? key : "");
         if (apiKey && !formPayload[apiKey]) formPayload[apiKey] = value;
       }
     });

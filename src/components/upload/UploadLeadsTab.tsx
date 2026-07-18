@@ -1050,6 +1050,13 @@ export function UploadLeadsTab({
     >;
     if (payloadFields.length > 0) {
       const payload: Record<string, string> = {};
+      const manualAcademicFieldKeys = new Set(["campus", "course", "specialization", "specialisation", "program"]);
+      const payloadFieldKeys = new Set(
+        payloadFields
+          .flatMap((field) => [field.fieldName, field.sourceKey, field.displayName])
+          .filter(Boolean)
+          .map((field) => normalizeMappingToken(field as string)),
+      );
 
       payloadFields.forEach((field) => {
         if (!field.fieldName) return;
@@ -1083,7 +1090,15 @@ export function UploadLeadsTab({
 
       entries.forEach(([key, value]) => {
         if (["leadSource", "leadMedium", "leadCampaign"].includes(key)) return;
-        const mappedKey = customColumnApiMapping[key] || columnMapping[key];
+        // A manual CSV override is already represented by the lead key. Keep
+        // it when the university mapping does not contain that key (e.g.
+        // CSV column -> Campus while the saved field is named campus).
+        const mappedKey =
+          customColumnApiMapping[key] ||
+          columnMapping[key] ||
+          (payloadFieldKeys.has(normalizeMappingToken(key)) || manualAcademicFieldKeys.has(normalizeMappingToken(key))
+            ? key
+            : "");
         if (mappedKey && !payload[mappedKey]) payload[mappedKey] = value;
       });
       Object.entries(columnMapping).forEach(([key, value]) => {
