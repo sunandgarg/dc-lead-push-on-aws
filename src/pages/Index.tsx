@@ -237,32 +237,22 @@ const Index = () => {
 
   const fetchLogs = useCallback(async () => {
     try {
-      const [logsRes, batchesRes] = await Promise.all([
-        supabase
-          .from('api_logs')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(500),
-        supabase
-          .from('upload_batches')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(100)
-      ]);
+      const { data, error } = await supabase
+        .from('upload_batches')
+        .select('id, university_id, file_name, total_leads, success_count, fail_count, duplicate_count, status, created_at, completed_at, user_id')
+        .order('created_at', { ascending: false })
+        .limit(100);
 
-      if (logsRes.error) throw logsRes.error;
+      if (error) throw error;
 
-      const logsWithNames = (logsRes.data || []).map(log => {
-        const uni = universities.find(u => u.id === log.university_id);
-        return { ...log, universityName: uni?.name || 'Unknown' };
-      });
-
-      setLogs(logsWithNames);
-      setBatches(batchesRes.data || []);
+      // API logs can contain full request/response payloads, so the main app
+      // avoids loading them unless a dedicated admin log view requests them.
+      setLogs([]);
+      setBatches(data || []);
     } catch (error) {
       console.error('Error fetching logs:', error);
     }
-  }, [universities, setLogs, setBatches]);
+  }, [setLogs, setBatches]);
 
   // Handle visibility change - save scroll position only, NO refetching on tab switch
   // This prevents the "refresh every time I come back" problem

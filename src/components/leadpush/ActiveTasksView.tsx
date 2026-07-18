@@ -45,7 +45,7 @@ function ActiveTasksViewInner() {
     try {
       const { data, error } = await supabase
         .from('upload_batches')
-        .select('*')
+        .select('id, university_id, file_name, total_leads, success_count, fail_count, duplicate_count, status, is_paused, is_cancelled, created_at, completed_at, user_id, leads_per_minute, scheduled_at')
         .in('status', ['processing', 'pending', 'paused', 'scheduled'])
         .order('created_at', { ascending: false })
         .limit(100);

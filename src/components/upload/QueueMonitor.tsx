@@ -68,7 +68,9 @@ function QueueMonitorInner() {
 
         let query = supabase
           .from("upload_batches")
-          .select("*")
+          .select(
+            "id, university_id, file_name, total_leads, success_count, fail_count, duplicate_count, status, is_paused, is_cancelled, created_at, user_id",
+          )
           .order("created_at", { ascending: false })
           .limit(50);
 

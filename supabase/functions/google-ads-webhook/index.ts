@@ -125,16 +125,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Log
-    await supabase.from('api_logs').insert({
-      status: 'Success',
-      source: 'Google Lead Ads',
-      trigger_point: 'Google Webhook',
-      response: `Received ${leads.length} leads`,
-      lead_data: body,
-      university_id: universityId || '00000000-0000-0000-0000-000000000000',
-    });
-
     return new Response(
       JSON.stringify({ success: true, leads_received: leads.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
