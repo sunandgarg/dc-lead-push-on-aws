@@ -215,7 +215,7 @@ export function AdPlatformsPage() {
     try {
       const [uniRes, logsRes] = await Promise.all([
         supabase.from('universities').select('id, name').order('name'),
-        supabase.from('api_logs').select('*')
+        supabase.from('api_logs').select('id, university_id, source, campaign, status, email, mobile, created_at')
           .in('source', ['Facebook Lead Ads', 'Google Lead Ads', 'Bing Lead Ads'])
           .order('created_at', { ascending: false }).limit(500),
       ]);
@@ -258,12 +258,11 @@ export function AdPlatformsPage() {
 
       if (logsRes.data) {
         setIncomingLeads(logsRes.data.map((l: any) => {
-          const ld = typeof l.lead_data === 'object' ? l.lead_data : {};
           const uni = uniRes.data?.find(u => u.id === l.university_id);
           return {
-            id: l.id, name: ld?.name || ld?.full_name || l.email || 'Unknown',
-            email: l.email || ld?.email || '', mobile: l.mobile || ld?.mobile || ld?.phone || '',
-            source: l.source || '', campaign: l.campaign || ld?.campaign || '',
+            id: l.id, name: l.email || l.mobile || 'Unknown',
+            email: l.email || '', mobile: l.mobile || '',
+            source: l.source || '', campaign: l.campaign || '',
             university: uni?.name || 'Unlinked', status: l.status, created_at: l.created_at,
           };
         }));

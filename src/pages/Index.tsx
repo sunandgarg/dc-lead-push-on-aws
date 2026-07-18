@@ -35,6 +35,49 @@ const toSlug = (name: string): string => {
 };
 
 const INITIAL_LOAD_TIMEOUT_MS = 15_000;
+const LIGHTWEIGHT_UNIVERSITY_COLUMNS = [
+  'id',
+  'name',
+  'api_url',
+  'college_id',
+  'source',
+  'medium',
+  'campaign',
+  'leads_per_minute',
+  'api_timeout_seconds',
+  'default_push_concurrency',
+  'daily_lead_limit',
+  'status',
+  'api_type',
+  'utm_link',
+  'publisher_panel_url',
+  'publisher_id',
+  'payload_wrapper',
+  'created_at',
+  'updated_at',
+  'daily_pushed_count',
+  'daily_count_reset_at',
+].join(', ');
+
+const UNIVERSITY_DETAIL_COLUMNS = [
+  'id',
+  'secret_key',
+  'column_mapping',
+  'sample_csv_content',
+  'auth_type',
+  'auth_header_key',
+  'auth_header_value',
+  'custom_headers',
+  'default_values',
+].join(', ');
+
+const hasUniversityDetails = (university: any | null | undefined) =>
+  !!university &&
+  'secret_key' in university &&
+  'column_mapping' in university &&
+  'auth_type' in university &&
+  'custom_headers' in university &&
+  'default_values' in university;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -159,7 +202,7 @@ const Index = () => {
     try {
       const { data: unis, error } = await supabase
         .from('universities')
-        .select('*')
+        .select(LIGHTWEIGHT_UNIVERSITY_COLUMNS)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -221,7 +264,6 @@ const Index = () => {
       const enrichedUnis = (unis || []).map(uni => ({
         ...uni,
         slug: toSlug(uni.name),
-        column_mapping: typeof uni.column_mapping === 'object' && uni.column_mapping !== null ? uni.column_mapping : {},
         programs: programsByUni.get(uni.id) || [],
         stateCities: stateCitiesByUni.get(uni.id) || [],
         courseSpecializations: coursesByUni.get(uni.id) || [],
@@ -234,6 +276,44 @@ const Index = () => {
       toast({ title: 'Error', description: 'Failed to fetch universities', variant: 'destructive' });
     }
   }, [toast, setUniversities]);
+
+  const mergeUniversityInState = useCallback((updatedUniversity: any) => {
+    const withSlug = { ...updatedUniversity, slug: updatedUniversity.slug || toSlug(updatedUniversity.name || '') };
+    setUniversitiesState((current) => {
+      const next = current.map((university) =>
+        university.id === withSlug.id ? { ...university, ...withSlug } : university,
+      );
+      appCache.setUniversities(next);
+      return next;
+    });
+    setSelectedUploadUniversityState((current) =>
+      current?.id === withSlug.id ? { ...current, ...withSlug } : current,
+    );
+    return withSlug;
+  }, []);
+
+  const fetchUniversityDetails = useCallback(async (id: string) => {
+    const current = universities.find((university) => university.id === id);
+    const selected = selectedUploadUniversity?.id === id ? selectedUploadUniversity : null;
+    if (hasUniversityDetails(current)) return current;
+    if (hasUniversityDetails(selected)) return selected;
+
+    const { data, error } = await supabase
+      .from('universities')
+      .select(UNIVERSITY_DETAIL_COLUMNS)
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return mergeUniversityInState({ ...(selected || {}), ...(current || {}), ...(data || {}) });
+  }, [mergeUniversityInState, selectedUploadUniversity, universities]);
+
+  useEffect(() => {
+    if (!selectedUploadUniversity?.id || hasUniversityDetails(selectedUploadUniversity)) return;
+    fetchUniversityDetails(selectedUploadUniversity.id).catch((error) => {
+      console.error('Failed to hydrate cached upload university:', error);
+    });
+  }, [fetchUniversityDetails, selectedUploadUniversity]);
 
   const fetchLogs = useCallback(async () => {
     try {
@@ -418,7 +498,15 @@ const Index = () => {
     }
   };
 
-  const handleEditUniversity = useCallback((uni: any) => {
+  const handleEditUniversity = useCallback(async (uni: any) => {
+    try {
+      uni = hasUniversityDetails(uni) ? uni : await fetchUniversityDetails(uni.id);
+    } catch (error) {
+      console.error('Error loading university details:', error);
+      toast({ title: 'Error', description: 'Failed to load university details', variant: 'destructive' });
+      return;
+    }
+
     setEditingUniversity({
       id: uni.id,
       name: uni.name,
@@ -450,7 +538,7 @@ const Index = () => {
     });
     navigate(`/lead-push/universities/edit/${uni.slug || uni.id}`);
     setIsEditModalOpen(true);
-  }, [navigate]);
+  }, [fetchUniversityDetails, navigate, toast]);
 
   const closeEditModal = useCallback(() => {
     navigate('/lead-push/universities');
@@ -530,7 +618,8 @@ const Index = () => {
   useEffect(() => {
     setSelectedUploadUniversityState((current) => {
       if (!current?.id) return current;
-      return universities.find((university) => university.id === current.id) || current;
+      const refreshed = universities.find((university) => university.id === current.id);
+      return refreshed ? { ...refreshed, ...current } : current;
     });
   }, [universities]);
 
@@ -587,11 +676,12 @@ const Index = () => {
     }
   };
 
-  const handleSelectUploadUniversity = useCallback((uni: any) => {
-    setSelectedUploadUniversityState(uni);
+  const handleSelectUploadUniversity = useCallback(async (uni: any) => {
+    const fullUniversity = hasUniversityDetails(uni) ? uni : await fetchUniversityDetails(uni.id);
+    setSelectedUploadUniversityState(fullUniversity);
     const slug = uni.slug || uni.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     appCache.setUploadSelectedUniversity(slug);
-  }, []);
+  }, [fetchUniversityDetails]);
 
   const handleBulkImport = useCallback(async (configs: any[]) => {
     // Every scalar/jsonb column on public.universities (excluding auto-managed id/created_at/updated_at

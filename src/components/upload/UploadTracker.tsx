@@ -98,7 +98,7 @@ export function UploadTracker({ universities, onViewBatch }: UploadTrackerProps)
       setLoading(true);
       const { data, error } = await supabase
         .from('upload_batches')
-        .select('*')
+        .select('id, university_id, file_name, total_leads, success_count, fail_count, duplicate_count, processed_count, status, is_paused, is_cancelled, created_at, completed_at, error_message')
         .order('created_at', { ascending: false })
         .limit(100);
 
